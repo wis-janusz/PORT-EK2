@@ -1,5 +1,10 @@
 import argparse
-import json
+import pickle
+import pandas as pd
+import numpy as np
+from scipy import sparse
+import tracemalloc
+from collections import defaultdict
 
 from Bio import SeqIO
 from datetime import datetime
@@ -15,31 +20,63 @@ parser.add_argument(
 )
 parser.add_argument("--k", help="lenght of kmers to find", type=int)
 parser.add_argument("--group", help="name of the sample group", type=str)
+parser.add_argument(
+    "--header_format",
+    help="format of the sequence headers in input fasta files. If the format is 'gisaid' or 'ncbi' accession numbers will be extracted, otherwhise the whole header will be used as ssample id.",
+    type=str,
+)
 
 
+def _unknown_nuc():
+    return "X"
 
-def _find_kmers_df(seq_list: list, k, out_dir, group):
-    seq_done = 1
-    for seq in seq_list:
+
+def _find_kmers(seq_list: list, k, out_dir, group):
+
+    encoding = defaultdict(_unknown_nuc)
+    encoding["A"] = "00"
+    encoding["C"] = "01"
+    encoding["G"] = "10"
+    encoding["T"] = "11"
+    kmer_set = set()
+    sample_list = [seq.id for seq in seq_list]
+
+    for idx, seq in enumerate(seq_list):
+        seqid = seq.id
+        seq = [encoding[nuc] for nuc in seq.seq]
         kmers_dict = {}
-        for i in range(len(seq.seq) - k):
-            kmer = seq.seq[i : i + k]
-            if all(nuc in ["A", "T", "G", "C"] for nuc in kmer):
+        kmers_pos_dict = {}
+        for i in range(len(seq) - k):
+            kmer = seq[i : i + k]
+            if "X" not in kmer:
+                kmer = int("".join(kmer), base=2)
+                kmer_set.add(kmer)
                 if kmer in kmers_dict.keys():
-                    kmers_dict[kmer].append(i + 1)
+                    kmers_dict[kmer] += 1
+                    kmers_pos_dict[kmer].append(i + 1)
                 else:
-                    kmers_dict[str(kmer)] = [i + 1]
-        
-        with open(f"{out_dir}/{group}_{seq.id}.json", mode="w") as out_file:
-            json.dump(kmers_dict, out_file)
+                    kmers_dict[kmer] = 1
+                    kmers_pos_dict[kmer] = [i + 1]
 
+        with open(
+            f"{out_dir}/{k}mer_indices/{group}_{seqid}_count.pkl", mode="wb"
+        ) as out_file:
+            pickle.dump(kmers_dict, out_file, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(
+            f"{out_dir}/{k}mer_indices/{group}_{seqid}_pos.pkl", mode="wb"
+        ) as out_file:
+            pickle.dump(kmers_pos_dict, out_file, protocol=pickle.HIGHEST_PROTOCOL)
         print(
-            f"Completed {seq.id}, {seq_done} of {len(seq_list)} sequences.",
+            f"Completed {seqid}, {idx+1} of {len(seq_list)} sequences.",
             sep=" ",
             end="\r",
             flush=True,
         )
-        seq_done += 1
+
+    with open(f"{out_dir}/{group}_{k}mer_set.pkl", mode="wb") as out_file:
+        pickle.dump(kmer_set, out_file, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(f"{out_dir}/{group}_sample_list.pkl", mode="wb") as out_file:
+        pickle.dump(sample_list, out_file, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def main():
@@ -48,16 +85,24 @@ def main():
 
     seq_list = list(SeqIO.parse(args.in_file, format="fasta"))
     for seq in seq_list:
-        if "EPI_ISL" in seq.id:
+
+        if args.header_format == 'gisaid':
             seq.id = seq.id.split("|")[1]
-        else:
+        elif args.header_format == 'ncbi':
             seq.id = seq.id.split("|")[0][:-1]
+
+        if "/" in seq.id:
+            raise ValueError("Sequence ids cannot contain '/'. If using data from GISAID please use '--header_format gisaid' option.")
         seq.seq = seq.seq.upper()
 
-    _find_kmers_df(seq_list, args.k, args.out_dir, args.group)
+    _find_kmers(seq_list, args.k, args.out_dir, args.group)
     print(f"\nDone, {datetime.now()}")
 
 
 if __name__ == "__main__":
+    # tracemalloc.start()
+    start = datetime.now()
     main()
-
+    # print(tracemalloc.get_traced_memory())
+    print(datetime.now() - start)
+    # tracemalloc.stop()
