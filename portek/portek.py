@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import regex
-from matplotlib import pyplot, collections, colormaps, patches
+from matplotlib import pyplot, collections, colormaps, patches, colors
 from datetime import datetime
 from scipy import stats
 
@@ -140,9 +140,9 @@ def assemble_kmers(
                 for j in range(i):
                     k1 = kmer_list[i]
                     k2 = kmer_list[j]
-                    if kmer_pos[i] == kmer_pos[j]-1 and k1[1:] == k2[:-1]:
+                    if kmer_pos[i] == kmer_pos[j] - 1 and k1[1:] == k2[:-1]:
                         edge_tuples.add((k1, k2))
-                    elif kmer_pos[j] == kmer_pos[i]-1 and k2[1:] == k1[:-1]:
+                    elif kmer_pos[j] == kmer_pos[i] - 1 and k2[1:] == k1[:-1]:
                         edge_tuples.add((k2, k1))
 
     kmer_graph = nx.from_edgelist(edge_tuples, create_using=nx.DiGraph)
@@ -157,16 +157,16 @@ def plot_segments(segment_df, ref_seq, colormap=colormaps["coolwarm"]):
     ends_list = list(zip(plot_df["ref_start"], plot_df["ref_end"]))
     ys = []
     y = 1
-    end_dict = {1:0}
+    end_dict = {1: 0}
     while len(ends_list) > 1:
         ends = ends_list.pop(0)
-        free_ends = {endy:endx for endy,endx in end_dict.items() if endx<=ends[0]}
-        if len(free_ends.keys())>0:
+        free_ends = {endy: endx for endy, endx in end_dict.items() if endx <= ends[0]}
+        if len(free_ends.keys()) > 0:
             y = min(free_ends.keys())
         else:
-            y = max(end_dict.keys())+1
+            y = max(end_dict.keys()) + 1
         ys.append(y)
-        end_dict[y]=ends[1]
+        end_dict[y] = ends[1]
 
     segments = [((1, 0), (len(ref_seq), 0))] + list(
         zip(zip(plot_df["ref_start"], ys), zip(plot_df["ref_end"], ys))
@@ -181,15 +181,31 @@ def plot_segments(segment_df, ref_seq, colormap=colormaps["coolwarm"]):
     pyplot.legend(handles=legends).set_loc("right")
     pyplot.show()
 
-def plot_segments_by_genome(segment_coords, segment_colors, ref_seq, colormap=colormaps["coolwarm"]):
-    groups_values = ["ref"] + list(set(segment_colors))
+
+def plot_segments_by_genome(
+    segment_coords: list,
+    segment_colors: list,
+    ref_seq: str,
+    title: str = None,
+    colormap: colors.LinearSegmentedColormap = colormaps["coolwarm"],
+):
+    groups_values = ["ref"] + sorted(list(set(segment_colors)))
     colors = [colormap(i) for i in np.linspace(0, 1, len(groups_values))]
     cdict = {groups_values[i]: colors[i] for i in range(len(groups_values))}
     segment_colors = [cdict["ref"]] + [cdict[group] for group in segment_colors]
-    lines = collections.LineCollection(segment_coords, colors=segment_colors, linewidths=2)
+    segment_coords = [((1, 0), (len(ref_seq), 0))] + segment_coords
+    lines = collections.LineCollection(
+        segment_coords, colors=segment_colors, linewidths=2
+    )
     fig, ax = pyplot.subplots()
+    pyplot.tight_layout()
     ax.add_collection(lines)
     ax.autoscale()
+    pyplot.tick_params(labelleft=False, left=False)
+    ax.set_xlabel("Reference genome position")
+    ax.set_ylabel("Genomes")
+    ax.set_title(title)
     legends = [patches.Patch(color=cdict[group], label=group) for group in cdict.keys()]
-    pyplot.legend(handles=legends).set_loc("right")
+    legends.reverse()
+    pyplot.legend(handles=legends, bbox_to_anchor=(1.0, 0.5), loc="center left")
     pyplot.show()
