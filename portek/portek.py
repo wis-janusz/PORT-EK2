@@ -48,10 +48,11 @@ def calc_kmer_pvalue(kmer: str, first_group, sec_group, matrix: pd.DataFrame):
 
 
 def assign_kmer_group(row: pd.Series, p_cols:list, avg_cols:list):
-    if all(row[p_cols] < 0.01):
-        group = row[avg_cols].idxmax()
-        group = group.split("_")[0]
-        return f"{group}_enriched"
+    max_group = row[avg_cols].idxmax()
+    max_group = max_group.split("_")[0]
+    rel_p_cols = [col for col in p_cols if max_group in col]
+    if all(row[rel_p_cols]<0.01):
+        return f"{max_group}_enriched"
     else:
         return "not significant"
     
@@ -242,6 +243,7 @@ def plot_segments_by_genome(
     legends = [patches.Patch(color=cdict[group], label=group) for group in cdict.keys()]
     legends.reverse()
     pyplot.legend(handles=legends, bbox_to_anchor=(1.0, 0.5), loc="center left")
-    pyplot.show()
     if save_path != None:
-        pyplot.savefig(save_path, format="svg",dpi=600)
+        pyplot.savefig(save_path, format="svg",dpi=600, bbox_inches = "tight")
+    pyplot.show()
+
