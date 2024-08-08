@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import regex
-
+from matplotlib import pyplot, collections, colormaps, patches
 from datetime import datetime
 from scipy import stats
 
@@ -116,16 +116,80 @@ def map_kmers_find_mutations(kmer, ref_seq_str, pos_matrix, n=2, l=1000, find_wt
     return alignment, mutations
 
 
-def assemble_kmers(kmer_list: list)->nx.DiGraph:
+def assemble_kmers(
+    kmer_list: list, how: str = "pos", kmer_df: pd.DataFrame = None
+) -> nx.DiGraph:
     edge_tuples = set()
-    for i in range(1,len(kmer_list)):
-        for j in range(i):
-            k1 = kmer_list[i]
-            k2 = kmer_list[j]
-            if k1[1:] == k2[:-1]:
-                edge_tuples.add((k1,k2))
-            elif k2[1:] == k1[:-1]:
-                edge_tuples.add((k2,k1))
+    if how == "seq":
+        for i in range(1, len(kmer_list)):
+            for j in range(i):
+                k1 = kmer_list[i]
+                k2 = kmer_list[j]
+                if k1[1:] == k2[:-1]:
+                    edge_tuples.add((k1, k2))
+                elif k2[1:] == k1[:-1]:
+                    edge_tuples.add((k2, k1))
+    elif how == "pos":
+        if type(kmer_df) != pd.DataFrame:
+            raise ValueError(
+                "If assemblying kmers by position, you must provide a dataframe with kemrs as index and 'ref_start' column"
+            )
+        else:
+            kmer_pos = [kmer_df.loc[kmer, "ref_start"] for kmer in kmer_list]
+            for i in range(1, len(kmer_list)):
+                for j in range(i):
+                    k1 = kmer_list[i]
+                    k2 = kmer_list[j]
+                    if kmer_pos[i] == kmer_pos[j]-1 and k1[1:] == k2[:-1]:
+                        edge_tuples.add((k1, k2))
+                    elif kmer_pos[j] == kmer_pos[i]-1 and k2[1:] == k1[:-1]:
+                        edge_tuples.add((k2, k1))
 
     kmer_graph = nx.from_edgelist(edge_tuples, create_using=nx.DiGraph)
     return kmer_graph
+
+
+def plot_segments(segment_df, ref_seq, colormap=colormaps["coolwarm"]):
+    plot_df = segment_df[["ref_start", "ref_end", "group"]].sort_values("ref_start")
+    groups_values = ["ref"] + np.unique(plot_df["group"]).tolist()
+    colors = [colormap(i) for i in np.linspace(0, 1, len(groups_values))]
+    cdict = {groups_values[i]: colors[i] for i in range(len(groups_values))}
+    ends_list = list(zip(plot_df["ref_start"], plot_df["ref_end"]))
+    ys = []
+    y = 1
+    end_dict = {1:0}
+    while len(ends_list) > 1:
+        ends = ends_list.pop(0)
+        free_ends = {endy:endx for endy,endx in end_dict.items() if endx<=ends[0]}
+        if len(free_ends.keys())>0:
+            y = min(free_ends.keys())
+        else:
+            y = max(end_dict.keys())+1
+        ys.append(y)
+        end_dict[y]=ends[1]
+
+    segments = [((1, 0), (len(ref_seq), 0))] + list(
+        zip(zip(plot_df["ref_start"], ys), zip(plot_df["ref_end"], ys))
+    )
+    segment_colors = [cdict["ref"]] + [cdict[group] for group in plot_df["group"]]
+    lines = collections.LineCollection(segments, colors=segment_colors, linewidths=2)
+    fig, ax = pyplot.subplots()
+    ax.set_xlim(0, len(ref_seq) + 1)
+    ax.set_ylim(-1, max(ys) + 1)
+    ax.add_collection(lines)
+    legends = [patches.Patch(color=cdict[group], label=group) for group in cdict.keys()]
+    pyplot.legend(handles=legends).set_loc("right")
+    pyplot.show()
+
+def plot_segments_by_genome(segment_coords, segment_colors, ref_seq, colormap=colormaps["coolwarm"]):
+    groups_values = ["ref"] + list(set(segment_colors))
+    colors = [colormap(i) for i in np.linspace(0, 1, len(groups_values))]
+    cdict = {groups_values[i]: colors[i] for i in range(len(groups_values))}
+    segment_colors = [cdict["ref"]] + [cdict[group] for group in segment_colors]
+    lines = collections.LineCollection(segment_coords, colors=segment_colors, linewidths=2)
+    fig, ax = pyplot.subplots()
+    ax.add_collection(lines)
+    ax.autoscale()
+    legends = [patches.Patch(color=cdict[group], label=group) for group in cdict.keys()]
+    pyplot.legend(handles=legends).set_loc("right")
+    pyplot.show()
