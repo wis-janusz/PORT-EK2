@@ -7,6 +7,23 @@ from datetime import datetime
 from scipy import stats
 
 
+def encode_kmer(kmer_seq: str) -> int:
+    encoding_dict = {"A": "00", "C": "01", "G": "10", "T": "11"}
+    kmer_bin_string = [encoding_dict[nuc] for nuc in kmer_seq]
+    id = int("".join(kmer_bin_string), base=2)
+    return id
+
+
+def decode_kmer(id: int, k) -> str:
+    decoding = {"00": "A", "01": "C", "10": "G", "11": "T"}
+    kmer_bin_string = bin(id)[2:].rjust(2 * k, "0")
+    kmer_bin_string = [
+        kmer_bin_string[i : i + 2] for i in range(0, len(kmer_bin_string), 2)
+    ]
+    kmer_seq = "".join([decoding[bits] for bits in kmer_bin_string])
+    return kmer_seq
+
+
 def filter_kmers(kmer_df: pd.DataFrame, freq_cols: list, cons_thr=0.01) -> pd.DataFrame:
     out_kmer_df = kmer_df[(kmer_df[freq_cols] > cons_thr).any(axis=1)]
     return out_kmer_df
@@ -37,6 +54,13 @@ def assign_kmer_group(row: pd.Series, p_cols:list, avg_cols:list):
         return f"{group}_enriched"
     else:
         return "not significant"
+    
+
+def check_exclusivity(row:pd. Series, avg_cols:list) -> str:
+    if len([col for col in avg_cols if row[col] > 0]) == 1:
+        return "exclusive"
+    else:
+        return "non-exclusive"
     
 
 def build_similarity_graph_two_list(
