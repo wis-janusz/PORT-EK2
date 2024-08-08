@@ -221,6 +221,7 @@ def plot_segments_by_genome(
     ref_seq: str,
     title: str = None,
     colormap: colors.LinearSegmentedColormap = colormaps["coolwarm"],
+    save_path: str = None
 ):
     groups_values = ["ref"] + sorted(list(set(segment_colors)))
     colors = [colormap(i) for i in np.linspace(0, 1, len(groups_values))]
@@ -242,3 +243,5 @@ def plot_segments_by_genome(
     legends.reverse()
     pyplot.legend(handles=legends, bbox_to_anchor=(1.0, 0.5), loc="center left")
     pyplot.show()
+    if save_path != None:
+        pyplot.savefig(save_path, format="svg",dpi=600)
