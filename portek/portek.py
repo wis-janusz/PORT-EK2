@@ -30,6 +30,15 @@ def calc_kmer_pvalue(kmer: str, first_group, sec_group, matrix: pd.DataFrame):
     return test_result.pvalue
 
 
+def assign_kmer_group(row: pd.Series, p_cols:list, avg_cols:list):
+    if all(row[p_cols] < 0.01):
+        group = row[avg_cols].idxmax()
+        group = group.split("_")[0]
+        return f"{group}_enriched"
+    else:
+        return "not significant"
+    
+
 def build_similarity_graph_two_list(
     query_list, target_list, mismatch_treshold: int
 ) -> nx.Graph:
