@@ -47,22 +47,22 @@ def calc_kmer_pvalue(kmer: str, first_group, sec_group, matrix: pd.DataFrame):
     return test_result.pvalue
 
 
-def assign_kmer_group(row: pd.Series, p_cols:list, avg_cols:list):
+def assign_kmer_group(row: pd.Series, p_cols: list, avg_cols: list):
     max_group = row[avg_cols].idxmax()
     max_group = max_group.split("_")[0]
     rel_p_cols = [col for col in p_cols if max_group in col]
-    if all(row[rel_p_cols]<0.01):
+    if all(row[rel_p_cols] < 0.01):
         return f"{max_group}_enriched"
     else:
         return "not significant"
-    
 
-def check_exclusivity(row:pd. Series, avg_cols:list) -> str:
+
+def check_exclusivity(row: pd.Series, avg_cols: list) -> str:
     if len([col for col in avg_cols if row[col] > 0]) == 1:
         return "exclusive"
     else:
         return "non-exclusive"
-    
+
 
 def build_similarity_graph_two_list(
     query_list, target_list, mismatch_treshold: int
@@ -216,13 +216,13 @@ def plot_segments(segment_df, ref_seq, colormap=colormaps["coolwarm"]):
     pyplot.show()
 
 
-def plot_segments_by_genome(
+def _draw_genome_overlay_plot(
     segment_coords: list,
     segment_colors: list,
     ref_seq: str,
     title: str = None,
     colormap: colors.LinearSegmentedColormap = colormaps["coolwarm"],
-    save_path: str = None
+    save_path: str = None,
 ):
     groups_values = ["ref"] + sorted(list(set(segment_colors)))
     colors = [colormap(i) for i in np.linspace(0, 1, len(groups_values))]
@@ -244,6 +244,35 @@ def plot_segments_by_genome(
     legends.reverse()
     pyplot.legend(handles=legends, bbox_to_anchor=(1.0, 0.5), loc="center left")
     if save_path != None:
-        pyplot.savefig(save_path, format="svg",dpi=600, bbox_inches = "tight")
+        pyplot.savefig(save_path, format="svg", dpi=600, bbox_inches="tight")
     pyplot.show()
 
+
+def plot_kmers_by_genome(
+    kmers_and_genomes:list,
+    kmer_matrix:pd.DataFrame,
+    group_sample_id:dict,
+    ref_seq:str,
+    title: str = None,
+    colormap: colors.LinearSegmentedColormap = colormaps["coolwarm"],
+    save_path: str = None,
+):
+    segment_coords = []
+    segment_colors = []
+    y = 1
+    for kmers,samples in kmers_and_genomes:
+        samples_to_plot = samples
+        kmers_to_plot = kmers
+        for sample_name in samples_to_plot:
+            sample_group = [
+                key for key, value in group_sample_id.items() if sample_name in value
+            ][0]
+            for kmer in kmers_to_plot:
+                if kmer_matrix.loc[kmer, sample_name] > 0:
+                    temp_segments = kmer_matrix.loc[kmer, "ref_pos"]
+                    temp_segments = [((x1, y), (x2, y)) for x1, x2 in temp_segments]
+                    segment_coords.extend(temp_segments)
+                    segment_colors.extend([sample_group for _ in range(len(temp_segments))])
+            y += 1
+            
+    _draw_genome_overlay_plot(segment_coords, segment_colors,ref_seq, title, colormap, save_path)

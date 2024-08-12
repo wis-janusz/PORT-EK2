@@ -9,4 +9,4 @@ from .portek import calc_agg_freq
 from .portek import map_kmers_find_mutations
 from .portek import assemble_kmers
 from .portek import plot_segments
-from .portek import plot_segments_by_genome
+from .portek import plot_kmers_by_genome
