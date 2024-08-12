@@ -223,6 +223,7 @@ def _draw_genome_overlay_plot(
     title: str = None,
     colormap: colors.LinearSegmentedColormap = colormaps["coolwarm"],
     save_path: str = None,
+    save_format: str = "svg"
 ):
     groups_values = ["ref"] + sorted(list(set(segment_colors)))
     colors = [colormap(i) for i in np.linspace(0, 1, len(groups_values))]
@@ -244,7 +245,7 @@ def _draw_genome_overlay_plot(
     legends.reverse()
     pyplot.legend(handles=legends, bbox_to_anchor=(1.0, 0.5), loc="center left")
     if save_path != None:
-        pyplot.savefig(save_path, format="svg", dpi=600, bbox_inches="tight")
+        pyplot.savefig(save_path, format=save_format, dpi=600, bbox_inches="tight")
     pyplot.show()
 
 
@@ -256,6 +257,7 @@ def plot_kmers_by_genome(
     title: str = None,
     colormap: colors.LinearSegmentedColormap = colormaps["coolwarm"],
     save_path: str = None,
+    save_format: str = "svg"
 ):
     segment_coords = []
     segment_colors = []
@@ -275,4 +277,4 @@ def plot_kmers_by_genome(
                     segment_colors.extend([sample_group for _ in range(len(temp_segments))])
             y += 1
             
-    _draw_genome_overlay_plot(segment_coords, segment_colors,ref_seq, title, colormap, save_path)
+    _draw_genome_overlay_plot(segment_coords, segment_colors,ref_seq, title, colormap, save_path, save_format)
