@@ -19,7 +19,7 @@ parser.add_argument(
     help="absolute path to the output directory, which must already exist",
 )
 parser.add_argument("--k", help="lenght of kmers to find", type=int)
-parser.add_argument("--group", help="name of the sample group", type=str)
+parser.add_argument("--group", help="name of the sample group, cannot include '_'", type=str)
 parser.add_argument(
     "--header_format",
     help="format of the sequence headers in input fasta files. If the format is 'gisaid' or 'ncbi' accession numbers will be extracted, otherwhise the whole header will be used as ssample id.",
@@ -67,7 +67,7 @@ def _find_kmers(seq_list: list, k, out_dir, group):
         ) as out_file:
             pickle.dump(kmers_pos_dict, out_file, protocol=pickle.HIGHEST_PROTOCOL)
         print(
-            f"Completed {seqid}, {idx+1} of {len(seq_list)} sequences.",
+            f"Completed {idx+1} of {len(seq_list)} sequences.",
             sep=" ",
             end="\r",
             flush=True,
