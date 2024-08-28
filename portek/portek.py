@@ -278,3 +278,28 @@ def plot_kmers_by_genome(
             y += 1
             
     _draw_genome_overlay_plot(segment_coords, segment_colors,ref_seq, title, colormap, save_path, save_format)
+
+def assign_gene_from_interval(ref_pos: list, gene_dict: dict) -> str:
+    genes = []
+    for start, end in ref_pos:
+        for gene, gene_range in gene_dict.items():
+            if (
+                len(
+                    [
+                        pos
+                        for pos in range(start, end + 1)
+                        if pos in list(range(gene_range[0], gene_range[1] + 1))
+                    ]
+                )
+                > 0
+            ):
+                genes.append(gene)
+
+    return ", ".join(genes)
+
+def assign_gene_from_position(ref_pos: int, gene_dict: dict) -> str:
+    genes = []
+    for gene, gene_range in gene_dict.items():
+        if gene_range[0] < ref_pos < gene_range[1]:
+            genes.append(gene)
+    return ", ".join(genes)

@@ -10,3 +10,4 @@ from .portek import map_kmers_find_mutations
 from .portek import assemble_kmers
 from .portek import plot_segments
 from .portek import plot_kmers_by_genome
+from .portek import assign_gene_from_interval, assign_gene_from_position
