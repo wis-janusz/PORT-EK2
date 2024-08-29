@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import regex
+import json
 from matplotlib import pyplot, collections, colormaps, patches, colors
 from datetime import datetime
 from scipy import stats
@@ -113,7 +114,7 @@ def calc_agg_freq(kmer_list, sample_list, source_df):
     return agg_freq
 
 
-# Future upgrade: if results found for i, but more than l away and thus discarded, go back to i+1.
+# Deprecated
 def map_kmers_find_mutations(kmer, ref_seq_str, pos_matrix, n=2, l=1000, find_wt=False):
     for i in range(n + 1):
         m = regex.findall(f"({kmer}){{s<={i}}}", ref_seq_str)
@@ -313,3 +314,13 @@ def assign_gene_from_position(ref_pos: int, gene_dict: dict) -> str:
         if gene_range[0] < ref_pos < gene_range[1]:
             genes.append(gene)
     return ", ".join(genes)
+
+
+class AnalysisPipeline: 
+    """
+    AnalysisPipeline:
+    """
+    def __init__(self, cofig_path:str) -> None:
+        with open(cofig_path,"w") as config_file:
+            config = json.load(config_file)
+        self.project_dir = config["project_dir"]
