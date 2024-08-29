@@ -2,4 +2,3 @@ encapsulate k selection in one function
 Volcano plot function
 
 make the pipeline? parts of pipeline? a class?
-add switch all_vs_all or one_vs_rest
