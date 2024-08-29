@@ -62,6 +62,8 @@ def assign_kmer_group_ovr(row: pd.Series, goi:str, p_cols: list, err_cols: list)
         return f"{goi}_enriched"
     elif all(row[p_cols] < 0.01) and all(row[err_cols] < 0):
         return "control_enriched"
+    elif any(row[p_cols] < 0.01):
+        return "group_dependent"
     else:
         return "not_significant"
 
