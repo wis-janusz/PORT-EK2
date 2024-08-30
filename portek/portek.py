@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import regex
+import json
 from matplotlib import pyplot, collections, colormaps, patches, colors
 from datetime import datetime
 from scipy import stats
@@ -47,15 +48,25 @@ def calc_kmer_pvalue(kmer: str, first_group, sec_group, matrix: pd.DataFrame):
     return test_result.pvalue
 
 
-def assign_kmer_group(row: pd.Series, p_cols: list, avg_cols: list):
+def assign_kmer_group_ava(row: pd.Series, p_cols: list, avg_cols: list):
     max_group = row[avg_cols].idxmax()
     max_group = max_group.split("_")[0]
     rel_p_cols = [col for col in p_cols if max_group in col]
     if all(row[rel_p_cols] < 0.01):
         return f"{max_group}_enriched"
     else:
-        return "not significant"
+        return "not_significant"
 
+def assign_kmer_group_ovr(row: pd.Series, goi:str, p_cols: list, err_cols: list):
+   
+    if all(row[p_cols] < 0.01) and all(row[err_cols] > 0):
+        return f"{goi}_enriched"
+    elif all(row[p_cols] < 0.01) and all(row[err_cols] < 0):
+        return "control_enriched"
+    elif any(row[p_cols] < 0.01):
+        return "group_dependent"
+    else:
+        return "not_significant"
 
 def check_exclusivity(row: pd.Series, avg_cols: list) -> str:
     if len([col for col in avg_cols if row[col] > 0]) == 1:
@@ -103,7 +114,7 @@ def calc_agg_freq(kmer_list, sample_list, source_df):
     return agg_freq
 
 
-# Future upgrade: if results found for i, but more than l away and thus discarded, go back to i+1.
+# Deprecated
 def map_kmers_find_mutations(kmer, ref_seq_str, pos_matrix, n=2, l=1000, find_wt=False):
     for i in range(n + 1):
         m = regex.findall(f"({kmer}){{s<={i}}}", ref_seq_str)
