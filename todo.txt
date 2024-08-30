@@ -1,2 +1,3 @@
 encapsulate k selection in one function
 make the pipeline? parts of pipeline? a class?
+change gene dict definition and gene mapping as in analysis branch
