@@ -294,26 +294,26 @@ def plot_kmers_by_genome(
 def assign_gene_from_interval(ref_pos: list, gene_dict: dict) -> str:
     genes = []
     for start, end in ref_pos:
-        for gene, gene_range in gene_dict.items():
-            if (
-                len(
-                    [
-                        pos
-                        for pos in range(start, end + 1)
-                        if pos in list(range(gene_range[0], gene_range[1] + 1))
-                    ]
-                )
-                > 0
-            ):
-                genes.append(gene)
-
-    return ", ".join(genes)
+        for gene, gene_ranges in gene_dict.items():
+            for gene_range in gene_ranges:
+                if (
+                    len(
+                        [
+                            pos
+                            for pos in range(start, end + 1)
+                            if pos in list(range(gene_range[0], gene_range[1] + 1))
+                        ]
+                    )
+                    > 0
+                ):
+                    genes.append(gene)
 
 def assign_gene_from_position(ref_pos: int, gene_dict: dict) -> str:
     genes = []
-    for gene, gene_range in gene_dict.items():
-        if gene_range[0] < ref_pos < gene_range[1]:
-            genes.append(gene)
+    for gene, gene_ranges in gene_dict.items():
+        for gene_range in gene_ranges:
+            if gene_range[0] < ref_pos < gene_range[1]:
+                genes.append(gene)
     return ", ".join(genes)
 
 
