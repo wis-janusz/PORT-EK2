@@ -1,9 +1,5 @@
 import argparse
 import pickle
-import pandas as pd
-import numpy as np
-from scipy import sparse
-import tracemalloc
 from collections import defaultdict
 
 from Bio import SeqIO
@@ -100,9 +96,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # tracemalloc.start()
-    start = datetime.now()
     main()
-    # print(tracemalloc.get_traced_memory())
-    print(datetime.now() - start)
-    # tracemalloc.stop()
+
