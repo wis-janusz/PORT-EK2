@@ -3,6 +3,7 @@ import pandas as pd
 import networkx as nx
 import regex
 import json
+import yaml
 from matplotlib import pyplot, collections, colormaps, patches, colors
 from datetime import datetime
 from scipy import stats
@@ -321,6 +322,13 @@ class AnalysisPipeline:
     AnalysisPipeline:
     """
     def __init__(self, cofig_path:str) -> None:
-        with open(cofig_path,"w") as config_file:
-            config = json.load(config_file)
+        with open(cofig_path,"r") as config_file:
+            config = yaml.load(config_file)
         self.project_dir = config["project_dir"]
+        self.sample_groups = config["sample_groups"]
+        self.mode = config["mode"]
+        if self.mode == "ovr":
+            self.goi = config["goi"]
+        else:
+            self.goi = None
+        self.ref_rec = config["ref_seq"]
