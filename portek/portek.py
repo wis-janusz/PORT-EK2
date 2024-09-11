@@ -342,7 +342,7 @@ class AnalysisPipeline:
                 raise ValueError("c must by a number between 0.0 and 1.0!")
             else:
                 self.c = c
-                
+
         if type(min_rmse) == float or type(min_rmse) == int:
             if min_rmse < 0: 
                 raise ValueError("min_rmse must by a positive number")
@@ -355,8 +355,8 @@ class AnalysisPipeline:
         self.kmer_set = None
         self.sample_list = None
         self.sample_group_dict = None
-        self.all_kmer_matrix = None
-        self.common_kmer_matrix =  None
+        self.common_kmer_matrix = None
+        self.rare_kmer_matrix = None
 
         try:
             with open(f"{project_dir}/config.yaml","r") as config_file:
@@ -389,7 +389,7 @@ class AnalysisPipeline:
             pass
 
 
-        def _get_common_kmers(self, save_all = False):
+        def get_kmers(self, save_rare = False):
             kmer_set = set()
             sample_list = []
             kmer_set_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(f"*{k}mer_set.pkl")
@@ -446,7 +446,6 @@ class AnalysisPipeline:
             for group in self.sample_groups:
                 all_kmer_matrix[f"{group}_freq"] = bin_kmer_matrix.loc[:, group_sample_dict[group]].mean(axis=1)
                 all_kmer_matrix[f"{group}_avg"] = all_kmer_matrix.loc[:, group_sample_dict[group]].mean(axis=1)
-            del bin_kmer_matrix
 
             # Remove polyA, as its presence and count is mostly dependant on sequencing quality not viral variant.
             if self.k*"A" in all_kmer_matrix.index:
@@ -456,11 +455,12 @@ class AnalysisPipeline:
             common_kmer_matrix = filter_kmers(
                 all_kmer_matrix, freq_cols=self.freq_cols, cons_thr=self.c
             )
+            rare_kmer_matrix = all_kmer_matrix.loc[all_kmer_matrix.index[~all_kmer_matrix.index.isin(common_kmer_matrix.index)]]
 
             # Save matrices to pipeline.
             self.common_kmer_matrix = common_kmer_matrix
-            if save_all == True:
-                self.all_kmer_matrix = all_kmer_matrix
+            if save_rare == True:
+                self.rare_kmer_matrix = rare_kmer_matrix
 
             print(
                 f"\n{len(common_kmer_matrix)} common k-mers remaining after filtering at a threshold of {self.c}."
