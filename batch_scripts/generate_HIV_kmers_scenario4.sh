@@ -1,5 +1,5 @@
 #!/bin/bash
-for k in 11
+for k in 9 11
 do
     mkdir -p output/HIV/scenario4/"$k"mer_indices
     python PORTEKfind.py input/HIV/prepped/MA.fasta output/HIV/scenario4 --k "$k" --group MA &

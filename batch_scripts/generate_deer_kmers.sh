@@ -1,5 +1,5 @@
 #!/bin/bash
-for k in 15
+for k in 5 7 9 11 13 15 17 19 25
 do
     mkdir -p output/deer/"$k"mer_indices
     python PORTEKfind.py input/deer/EPI_SET_240422va.fasta output/deer/ --k "$k" --group deer --header_format gisaid&

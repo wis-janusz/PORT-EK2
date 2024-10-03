@@ -1,5 +1,5 @@
 #!/bin/bash
-for k in 15
+for k in 5 7 9 11 13 15 17 19 25
 do
     mkdir -p output/bat/"$k"mer_indices
     python PORTEKfind.py input/bat/bat.fasta output/bat/ --k "$k" --group bat --header_format ncbi&
