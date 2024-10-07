@@ -1,4 +1,5 @@
-figure out project and config file creation
-encapsulate k selection in one function/class
-make the pipeline? parts of pipeline? a class?
+k selection in one module - portek_k.py
+enriched k_mer selection in one module - portek_enriched
+mapping in one module - portek_map
+classification in one modeule - portek_classify
 change gene dict definition and gene mapping as in analysis branch
