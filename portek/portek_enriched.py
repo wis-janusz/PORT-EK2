@@ -2,6 +2,7 @@ import os
 import pathlib
 import yaml
 import pickle
+import numpy as np
 import pandas as pd
 from Bio import Align, SeqIO
 

@@ -13,3 +13,4 @@ from .portek import plot_kmers_by_genome
 from .portek import assign_gene_from_interval, assign_gene_from_position
 
 from .portek_enriched import EnrichedKmersPipeline
+from .portek_findk import FindOptimalKPipeline

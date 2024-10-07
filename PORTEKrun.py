@@ -1,6 +1,7 @@
 import argparse
 import os
 import shutil
+import portek
 
 parser = argparse.ArgumentParser(
     description="Main PORT-EK v2 program. Use it to run all PORT-EK functions with the appropriate 'tool' argument."
@@ -8,9 +9,15 @@ parser = argparse.ArgumentParser(
 parser.add_argument("tool", help="Name of the PORT-EK function you want to execute. Choose one of: new, find_k, enriched, map, classify")
 
 parser.add_argument(
-    "--project_dir",
-    help="path to the desired new project directory for use with PORTEKrun.py new",
+    "project_dir",
+    help="path to the project directory. Must not exist for PORTEKrun.py new, must exist for all other tools",
     type=str,
+)
+
+parser.add_argument(
+    "--max_k",
+    help="Maximum k value to test with PORTEKrun.py find_k. PORTEK will test all odd k values from 5 up to and incliding max_k.",
+    type=int
 )
 
 
@@ -28,10 +35,14 @@ def _new_project(project_dir: str) -> None:
 
 def main():
     args = parser.parse_args()
+    if type(args.project_dir) != str:
+        raise ValueError("Please provide a valid project directory name.")
     if args.tool == "new":
-        if type(args.project_dir) != str:
-            raise ValueError("Please provide a valid project directory name.")
         _new_project(args.project_dir)
+    elif args.tool == "find_k":
+        optimal_k_finder = portek.FindOptimalKPipeline(args.project_dir, args.max_k)
+        optimal_k_finder.find_optimal_k()
+
 
 
 if __name__ == "__main__":
