@@ -7,7 +7,7 @@ from datetime import datetime
 
 
 parser = argparse.ArgumentParser(
-    description="Find all kmers in all sequences from a fasta file. Save count and optionally position matrix."
+    description="Find all kmers in all sequences from a fasta file. Save their counts and positions"
 )
 parser.add_argument("in_file", help="path to the .fasta file with input sequences")
 parser.add_argument(
