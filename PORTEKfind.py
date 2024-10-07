@@ -64,12 +64,6 @@ def _find_kmers(seq_list: list, k, out_dir, group):
             f"{out_dir}/{k}mer_indices/{group}_{seqid}_pos.pkl", mode="wb"
         ) as out_file:
             pickle.dump(kmers_pos_dict, out_file, protocol=pickle.HIGHEST_PROTOCOL)
-        print(
-            f"Completed {idx+1} of {len(seq_list)} sequences.",
-            sep=" ",
-            end="\r",
-            flush=True,
-        )
 
     with open(f"{out_dir}/{group}_{k}mer_set.pkl", mode="wb") as out_file:
         pickle.dump(kmer_set, out_file, protocol=pickle.HIGHEST_PROTOCOL)
@@ -79,7 +73,7 @@ def _find_kmers(seq_list: list, k, out_dir, group):
 
 def main():
     args = parser.parse_args()
-    print(f"Start, {datetime.now()}")
+    print(f"Start finding {args.k}-mers in {args.in_file} {datetime.now()}")
 
     seq_list = list(SeqIO.parse(args.in_file, format="fasta"))
     for seq in seq_list:
@@ -96,7 +90,7 @@ def main():
         seq.seq = seq.seq.upper()
 
     _find_kmers(seq_list, args.k, args.out_dir, args.group)
-    print(f"\nDone, {datetime.now()}")
+    print(f"Done finding {args.k}-mers in {args.in_file} {datetime.now()}")
 
 
 if __name__ == "__main__":
