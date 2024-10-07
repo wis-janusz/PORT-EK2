@@ -1,0 +1,13 @@
+sample_groups: [] #Fill with comma separated list of group names, must be identical to the groups in generate_kmers.sh script, case sensitive.
+mode: #"ava" or "ovr" for all vs all or one vs rest comparison. If ovr, input the group of interest in the next line
+goi: #Define group of interest for ovr mode.
+ref_seq: #Name of fasta file containing reference genomic sequence, if used. The file should be placed in $project_dir/input.
+ref_genes: #List of genes/genomic regions and their start and end positions in the reference genomic sequence, if used. Can have multiple regions per gene.
+    GENE_A:
+    - - 9086 #Start
+    - 9719 #End
+    GENE_B:
+    - - 5969 #Start of region 1
+    - 6045 #End of region 1
+    - - 8378 #Start of region 2
+    - 8650 #end of region 2
