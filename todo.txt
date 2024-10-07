@@ -1,3 +1,4 @@
-encapsulate k selection in one function
+figure out project and config file creation
+encapsulate k selection in one function/class
 make the pipeline? parts of pipeline? a class?
 change gene dict definition and gene mapping as in analysis branch
