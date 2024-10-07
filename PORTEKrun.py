@@ -4,7 +4,7 @@ import shutil
 import portek
 
 parser = argparse.ArgumentParser(
-    description="Main PORT-EK v2 program. Use it to run all PORT-EK functions with the appropriate 'tool' argument."
+    description="Main PORT-EK v2 program. Use it to run all PORT-EK tools with the appropriate 'tool' argument."
 )
 parser.add_argument("tool", help="Name of the PORT-EK function you want to execute. Choose one of: new, find_k, enriched, map, classify")
 
@@ -42,7 +42,14 @@ def main():
     elif args.tool == "find_k":
         optimal_k_finder = portek.FindOptimalKPipeline(args.project_dir, args.max_k)
         optimal_k_finder.find_optimal_k()
-
+    elif args.tool == "enriched":
+        pass
+    elif args.tool == "map":
+        pass
+    elif args.tool == "classify":
+        pass
+    else:
+        raise ValueError("Unrecoginzed PORT-EK tool requested. Choose one of: new, find_k, enriched, map, classify.")
 
 
 if __name__ == "__main__":

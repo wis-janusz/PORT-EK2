@@ -47,9 +47,13 @@ class FindOptimalKPipeline:
         pass
 
     def find_optimal_k(self):
-        paramters_by_k = {}
+        spec_k = {}
+        eff_k = {}
+        score_k = {}
+        mem_k = {}
+
         for k in range(5, self.maxk + 2, 2):
-            print("Calculating specificity, ")
+            print(f"Calculating metrics for {k}-mers.")
             kmer_set = set()
             sample_list = []
             kmer_set_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
@@ -63,6 +67,9 @@ class FindOptimalKPipeline:
                 with open(filename, mode="rb") as in_file:
                     partial_set = pickle.load(in_file)
                 kmer_set.update(partial_set)
+            if len(kmer_set) == 0:
+                print(f"No {k}-mers found. Skipping.")
+                continue
 
             for filename in sample_list_in_path:
                 with open(filename, mode="rb") as in_file:
@@ -134,12 +141,36 @@ class FindOptimalKPipeline:
                 / mean_count
             )
 
-            specificity = all_kmer_matrix["RMSE_norm"].mean()
-            n_kmers = len(all_kmer_matrix)
-            df_mem = all_kmer_matrix.memory_usage(index=True, deep=True).sum()
+            specificity = all_kmer_matrix["RMSE"].mean()
+            efficiency = len(all_kmer_matrix[all_kmer_matrix["RMSE"]>specificity])/len(all_kmer_matrix)
+            df_mem = (all_kmer_matrix.memory_usage(index=True, deep=True).sum())/1024/1024/1024
+            score = specificity*efficiency
             print(
-                f"Done calculating specificty ({specificity}), efficiency ({n_kmers}) of {k}-mers. The resulting data frame takes up {round(df_mem/1024/1024, 2)} MB."
+                f"Done calculating metrics for {k}-mers."
             )
-            paramters_by_k[k] = (specificity, n_kmers, df_mem)
+            spec_k[k] = specificity
+            eff_k[k] = efficiency
+            score_k[k] = score
+            mem_k[k] = df_mem
+
+        print("\nHere are the results of optimal k selection:")
+        for k in spec_k.keys():
+            print(f"k: {k}, specificity {round(spec_k[k],4)}, efficiency {round(eff_k[k],4)}, score {round(score_k[k], 4)}, data frame memory size {round(mem_k[k],2)} GB.")
+
+        best_k = max(score_k, key=score_k.get)
+        small_score_k = {k:score for k, score in score_k.items() if mem_k[k] < 12}
+        if len(small_score_k) > 0:
+            best_small_k = max(small_score_k, key=small_score_k.get)
+        else:
+            best_small_k = None
+        if best_k == best_small_k:
+            print(f"\nPORT-EK thinks the best k value for your data is {best_k}!")
+        else:
+            print(f"\nPORT-EK thinks the best k value for your data is {best_k}!")
+            print(f"However, the resulting data frame is larger than 12 GB ({round(mem_k[best_k], 2)} GB)!")
+            if best_small_k == None:
+                print("Unfortunetaly, no k value produces a data frame smaller than 12 GB.")
+            else:
+                print(f"The best k value that produces a data frame smaller than 12 GB is {best_small_k}.")
             
 
