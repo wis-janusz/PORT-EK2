@@ -2,6 +2,7 @@
 input/
 output/
 projects/
+notebooks/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
