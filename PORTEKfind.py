@@ -7,7 +7,7 @@ from datetime import datetime
 
 
 parser = argparse.ArgumentParser(
-    description="Find all kmers in all sequences from a fasta file. Save their counts and positions"
+    description="Find all kmers in all sequences from a fasta file. Save their counts and positions."
 )
 parser.add_argument("in_file", help="path to the .fasta file with input sequences")
 parser.add_argument(
@@ -20,7 +20,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--header_format",
-    help="format of the sequence headers in input fasta files. If the format is 'gisaid' or 'ncbi' accession numbers will be extracted, otherwhise the whole header will be used as sample id.",
+    help="(optional) format of the sequence headers in input fasta files. If the format is 'gisaid' or 'ncbi' accession numbers will be extracted, otherwhise the whole header will be used as sample id.",
     type=str,
 )
 
