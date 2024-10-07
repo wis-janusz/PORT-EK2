@@ -73,83 +73,79 @@ class EnrichedKmersPipeline:
             raise FileNotFoundError(f"No config.yaml file found in directory {project_dir}!")
 
 
-        def __repr__(self) -> str:
-            pass
+    def __repr__(self) -> str:
+        pass
 
 
-        def get_kmers(self, save_rare = False):
-            kmer_set = set()
-            sample_list = []
-            kmer_set_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(f"*{k}mer_set.pkl")
-            sample_list_in_path = pathlib.Path(f"{self.project_dir}/input/").glob("*sample_list.pkl")
+    def get_kmers(self, save_rare = False):
+        kmer_set = set()
+        sample_list = []
+        kmer_set_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(f"*{self.k}mer_set.pkl")
+        sample_list_in_path = pathlib.Path(f"{self.project_dir}/input/").glob("*sample_list.pkl")
 
-            for filename in kmer_set_in_path:
-                with open(filename, mode="rb") as in_file:
-                    partial_set = pickle.load(in_file)
-                kmer_set.update(partial_set)
+        for filename in kmer_set_in_path:
+            with open(filename, mode="rb") as in_file:
+                partial_set = pickle.load(in_file)
+            kmer_set.update(partial_set)
+        if len(kmer_set) == 0:
+            raise FileNotFoundError(f"No {self.k}-mers found in project directory! Make sure you generate them using generate_kmers.sh.")
 
-            for filename in sample_list_in_path:
-                with open(filename, mode="rb") as in_file:
-                    partial_list = pickle.load(in_file)
-                group = filename.stem.split("_")[0]
-                partial_list = [f"{group}_{sample_name}" for sample_name in partial_list]
-                sample_list.extend(partial_list)
-            sample_list.sort()
+        for filename in sample_list_in_path:
+            with open(filename, mode="rb") as in_file:
+                partial_list = pickle.load(in_file)
+            group = filename.stem.split("_")[0]
+            partial_list = [f"{group}_{sample_name}" for sample_name in partial_list]
+            sample_list.extend(partial_list)
+        sample_list.sort()
 
-            all_kmer_matrix = pd.DataFrame(
-                0, index=list(kmer_set), columns=sample_list, dtype="uint8"
-            )
-            group_sample_dict = {f"{group}":[sample for sample in sample_list if sample.split("_")[0] == f"{group}"] for group in self.sample_groups}
+        all_kmer_matrix = pd.DataFrame(
+            0, index=list(kmer_set), columns=sample_list, dtype="uint8"
+        )
+        group_sample_dict = {f"{group}":[sample for sample in sample_list if sample.split("_")[0] == f"{group}"] for group in self.sample_groups}
 
-            self.kmer_set = kmer_set
-            self.sample_list = sample_list
-            self.group_sample_dict = group_sample_dict
-            print(f"\nImported {len(kmer_set)} kmers and {len(sample_list)} samples.")
+        self.kmer_set = kmer_set
+        self.sample_list = sample_list
+        self.group_sample_dict = group_sample_dict
+        print(f"\nImported {len(kmer_set)} kmers and {len(sample_list)} samples.")
 
-            #Fill matrix with k-mer counts.
-            counter = 1
-            tot_files = len(sample_list)
-            in_path = pathlib.Path(f"{self.project_dir}/input/{k}mer_indices").glob("*_count.pkl")
 
-            for filename in in_path:
-                with open(filename, mode="rb") as in_file:
-                    temp_dict = pickle.load(in_file)
-                sample_name = "_".join(filename.stem.split("_")[:-1])
-                count_dict = {f"{sample_name}": temp_dict.values()}
-                temp_df = pd.DataFrame(count_dict, index=temp_dict.keys(), dtype="uint8")
-                all_kmer_matrix.update(temp_df)
-                print(
-                    f"{counter} of {tot_files} indices done.",
-                    end="\r",
-                    flush=True,
-                )
-                counter += 1
+        counter = 1
+        tot_files = len(sample_list)
+        in_path = pathlib.Path(f"{self.project_dir}/input/{self.k}mer_indices").glob("*_count.pkl")
 
-            # Decode k-mer sequences
-            all_kmer_matrix.index = all_kmer_matrix.index.map(lambda id: portek.decode_kmer(id,k))
-
-            # Construct a temporary binary count matrix, i.e. one that shows if a k-mer is present in sequence, without regards to actual count.
-            # Calculate k-mer frequencies and average counts in groups.
-            bin_kmer_matrix = all_kmer_matrix > 0
-            for group in self.sample_groups:
-                all_kmer_matrix[f"{group}_freq"] = bin_kmer_matrix.loc[:, group_sample_dict[group]].mean(axis=1)
-                all_kmer_matrix[f"{group}_avg"] = all_kmer_matrix.loc[:, group_sample_dict[group]].mean(axis=1)
-
-            # Remove polyA, as its presence and count is mostly dependant on sequencing quality not viral variant.
-            if self.k*"A" in all_kmer_matrix.index:
-                all_kmer_matrix = all_kmer_matrix.drop(self.k*"A")
-
-            # Apply rarity filter.
-            common_kmer_matrix = portek.filter_kmers(
-                all_kmer_matrix, freq_cols=self.freq_cols, cons_thr=self.c
-            )
-            rare_kmer_matrix = all_kmer_matrix.loc[all_kmer_matrix.index[~all_kmer_matrix.index.isin(common_kmer_matrix.index)]]
-
-            # Save matrices to pipeline.
-            self.common_kmer_matrix = common_kmer_matrix
-            if save_rare == True:
-                self.rare_kmer_matrix = rare_kmer_matrix
-
+        for filename in in_path:
+            with open(filename, mode="rb") as in_file:
+                temp_dict = pickle.load(in_file)
+            sample_name = "_".join(filename.stem.split("_")[:-1])
+            count_dict = {f"{sample_name}": temp_dict.values()}
+            temp_df = pd.DataFrame(count_dict, index=temp_dict.keys(), dtype="uint8")
+            all_kmer_matrix.update(temp_df)
             print(
-                f"\n{len(common_kmer_matrix)} common k-mers remaining after filtering at a threshold of {self.c}."
+                f"{counter} of {tot_files} indices done.",
+                end="\r",
+                flush=True,
             )
+            counter += 1
+
+        all_kmer_matrix.index = all_kmer_matrix.index.map(lambda id: portek.decode_kmer(id,self.k))
+
+        bin_kmer_matrix = all_kmer_matrix > 0
+        for group in self.sample_groups:
+            all_kmer_matrix[f"{group}_freq"] = bin_kmer_matrix.loc[:, group_sample_dict[group]].mean(axis=1)
+            all_kmer_matrix[f"{group}_avg"] = all_kmer_matrix.loc[:, group_sample_dict[group]].mean(axis=1)
+
+        if self.k*"A" in all_kmer_matrix.index:
+            all_kmer_matrix = all_kmer_matrix.drop(self.k*"A")
+
+        common_kmer_matrix = portek.filter_kmers(
+            all_kmer_matrix, freq_cols=self.freq_cols, cons_thr=self.c
+        )
+        rare_kmer_matrix = all_kmer_matrix.loc[all_kmer_matrix.index[~all_kmer_matrix.index.isin(common_kmer_matrix.index)]]
+
+        self.common_kmer_matrix = common_kmer_matrix
+        if save_rare == True:
+            self.rare_kmer_matrix = rare_kmer_matrix
+
+        print(
+            f"\n{len(common_kmer_matrix)} common k-mers remaining after filtering at a threshold of {self.c}."
+        )

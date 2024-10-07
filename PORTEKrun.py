@@ -16,8 +16,26 @@ parser.add_argument(
 
 parser.add_argument(
     "--max_k",
-    help="Maximum k value to test with PORTEKrun.py find_k. PORTEK will test all odd k values from 5 up to and incliding max_k.",
+    help="Maximum k value to test with PORT-EK find_k. PORT-EK will test all odd k values from 5 up to and incliding max_k.",
     type=int
+)
+
+parser.add_argument(
+    "--k",
+    help="k value for PORT-EK enriched, map and classify",
+    type=int
+)
+
+parser.add_argument(
+    "--c",
+    help="rarity filter threshold for PORT-EK enriched. Portek will only use k-mers that have frquency of more than c in at least one sample group",
+    type=float
+)
+
+parser.add_argument(
+    "--min_rmse",
+    help="RMSE filter threshold for PORT-ek enriched. Portek will discard k-mers with RMSE lower than min_rmse",
+    type=float
 )
 
 
@@ -43,7 +61,9 @@ def main():
         optimal_k_finder = portek.FindOptimalKPipeline(args.project_dir, args.max_k)
         optimal_k_finder.find_optimal_k()
     elif args.tool == "enriched":
-        pass
+        enriched_kmers_finder = portek.EnrichedKmersPipeline(args.project_dir, args.k, args.c, args.min_rmse)
+        enriched_kmers_finder.get_kmers()
+
     elif args.tool == "map":
         pass
     elif args.tool == "classify":
