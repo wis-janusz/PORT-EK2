@@ -12,7 +12,7 @@ class EnrichedKmersPipeline:
     """
     EnrichedKmersPipeline:
     """
-    def __init__(self, project_dir:str, k:int, c:float, min_rmse:float) -> None:
+    def __init__(self, project_dir:str, k:int, c:float, min_rmse:float, rare_m:int = 0) -> None:
         if os.path.isdir(project_dir) == True:
             self.project_dir = project_dir
         else:
@@ -149,3 +149,6 @@ class EnrichedKmersPipeline:
         print(
             f"\n{len(common_kmer_matrix)} common k-mers remaining after filtering at a threshold of {self.c}."
         )
+
+    def calc_kmer_stats(self):
+        pass

@@ -38,6 +38,11 @@ parser.add_argument(
     type=float
 )
 
+parser.add_argument(
+    "--rare_m",
+    help="Allowed mismatches when re-examining rare k-mers with PORT-ek enriched. Omit if not re-examining rare k-mers."
+)
+
 
 def _new_project(project_dir: str) -> None:
     if os.path.isdir(project_dir) == True:
