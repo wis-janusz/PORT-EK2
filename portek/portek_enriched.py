@@ -39,13 +39,6 @@ class EnrichedKmersPipeline:
         else:
             raise ValueError("min_rmse must by a positive number")
 
-
-        self.kmer_set = None
-        self.sample_list = None
-        self.sample_group_dict = None
-        self.common_kmer_matrix = None
-        self.rare_kmer_matrix = None
-
         try:
             with open(f"{project_dir}/config.yaml","r") as config_file:
                 config = yaml.safe_load(config_file)
@@ -55,9 +48,12 @@ class EnrichedKmersPipeline:
                 self.goi = config["goi"]
                 self.control_groups = self.sample_groups.copy()
                 self.control_groups.remove(self.goi)
-            else:
+            elif self.mode == "ava":
                 self.goi = None
                 self.control_groups = None
+            else:
+                raise ValueError("Unrecognized analysis mode, should by ava or ovr. Check your config file!")
+            
             self.ref_rec = config["ref_seq"]
             if "ref_genes" in config.keys():
                 self.ref_genes = config["ref_genes"]
@@ -65,13 +61,18 @@ class EnrichedKmersPipeline:
                 self.ref_genes = None
             self.freq_cols = [f"{group}_freq" for group in self.sample_groups]
             self.avg_cols = [f"{group}_avg" for group in  self.sample_groups]
-            self.aligner = Align.PairwiseAligner(
-                scoring="megablast",
-                mode="local"
-            )
+
         except:
             raise FileNotFoundError(f"No config.yaml file found in directory {project_dir}!")
 
+
+        self.kmer_set = None
+        self.sample_list = None
+        self.sample_group_dict = None
+        self.common_kmer_matrix = None
+        self.rare_kmer_matrix = None
+        self.common_kmer_stat_matrix = None
+        self.enriched_groups = None
 
     def __repr__(self) -> str:
         pass
@@ -101,11 +102,11 @@ class EnrichedKmersPipeline:
         all_kmer_matrix = pd.DataFrame(
             0, index=list(kmer_set), columns=sample_list, dtype="uint8"
         )
-        group_sample_dict = {f"{group}":[sample for sample in sample_list if sample.split("_")[0] == f"{group}"] for group in self.sample_groups}
+        sample_group_dict = {f"{group}":[sample for sample in sample_list if sample.split("_")[0] == f"{group}"] for group in self.sample_groups}
 
         self.kmer_set = kmer_set
         self.sample_list = sample_list
-        self.group_sample_dict = group_sample_dict
+        self.sample_group_dict = sample_group_dict
         print(f"\nImported {len(kmer_set)} kmers and {len(sample_list)} samples.")
 
 
@@ -131,8 +132,8 @@ class EnrichedKmersPipeline:
 
         bin_kmer_matrix = all_kmer_matrix > 0
         for group in self.sample_groups:
-            all_kmer_matrix[f"{group}_freq"] = bin_kmer_matrix.loc[:, group_sample_dict[group]].mean(axis=1)
-            all_kmer_matrix[f"{group}_avg"] = all_kmer_matrix.loc[:, group_sample_dict[group]].mean(axis=1)
+            all_kmer_matrix[f"{group}_freq"] = bin_kmer_matrix.loc[:, sample_group_dict[group]].mean(axis=1)
+            all_kmer_matrix[f"{group}_avg"] = all_kmer_matrix.loc[:, sample_group_dict[group]].mean(axis=1)
 
         if self.k*"A" in all_kmer_matrix.index:
             all_kmer_matrix = all_kmer_matrix.drop(self.k*"A")
@@ -151,4 +152,71 @@ class EnrichedKmersPipeline:
         )
 
     def calc_kmer_stats(self):
-        pass
+        if self.mode == "ava":
+            self.common_kmer_matrix["seq"] = self.common_kmer_matrix.index
+            err_cols = []
+            p_cols = []
+            for j in range(1, len(self.sample_groups)):
+                for i in range(j):
+                    err_name = f"{self.sample_groups[i]}-{self.sample_groups[j]}_err"
+                    p_name = f"{self.sample_groups[i]}-{self.sample_groups[j]}_p-value"
+                    err_cols.append(err_name)
+                    p_cols.append(p_name)
+                    self.common_kmer_matrix[err_name] = (
+                        self.common_kmer_matrix[f"{self.sample_groups[i]}_avg"]
+                        - self.common_kmer_matrix[f"{self.sample_groups[j]}_avg"]
+                    )
+                    self.common_kmer_matrix[p_name] = self.common_kmer_matrix["seq"].apply(
+                        portek.calc_kmer_pvalue,
+                        args=(
+                            self.sample_group_dict[self.sample_groups[i]],
+                            self.sample_group_dict[self.sample_groups[j]],
+                            self.common_kmer_matrix,
+                        ),
+                    )
+                    self.common_kmer_matrix[f"-log10_{p_name}"] = -np.log10(self.common_kmer_matrix[p_name])
+            self.common_kmer_matrix["RMSE"] = np.sqrt(((self.common_kmer_matrix[err_cols]) ** 2).mean(axis=1))
+            self.common_kmer_matrix = self.common_kmer_matrix.sort_values("RMSE", ascending=False)
+            self.common_kmer_matrix = self.common_kmer_matrix.drop("seq", axis=1)
+            self.common_kmer_matrix["group"] = self.common_kmer_matrix.apply(
+                portek.assign_kmer_group_ava, p_cols = p_cols, avg_cols = self.avg_cols,axis=1
+            )
+            self.common_kmer_matrix["exclusivity"] = self.common_kmer_matrix.apply(
+                portek.check_exclusivity, avg_cols = self.avg_cols, axis=1
+            )
+            self.common_kmer_stat_matrix = self.common_kmer_matrix.drop(self.sample_list, axis=1)
+
+        else:
+            self.common_kmer_matrix["seq"] = self.common_kmer_matrix.index
+            err_cols = []
+            p_cols = []
+            for j in range(len(self.control_groups)):
+                err_name = f"{self.goi}-{self.control_groups[j]}_err"
+                p_name = f"{self.goi}-{self.control_groups[j]}_p-value"
+                err_cols.append(err_name)
+                p_cols.append(p_name)
+                self.common_kmer_matrix[err_name] = (
+                    self.common_kmer_matrix[f"{self.goi}_avg"]
+                    - self.common_kmer_matrix[f"{self.control_groups[j]}_avg"]
+                )
+                self.common_kmer_matrix[p_name] = self.common_kmer_matrix["seq"].apply(
+                    portek.calc_kmer_pvalue,
+                    args=(
+                        self.sample_group_dict[self.goi],
+                        self.sample_group_dict[self.control_groups[j]],
+                        self.common_kmer_matrix,
+                    ),
+                )
+                self.common_kmer_matrix[f"-log10_{p_name}"] = -np.log10(self.common_kmer_matrix[p_name])
+            self.common_kmer_matrix["RMSE"] = np.sqrt(((self.common_kmer_matrix[err_cols]) ** 2).mean(axis=1))
+            self.common_kmer_matrix = self.common_kmer_matrix.sort_values("RMSE", ascending=False)
+            self.common_kmer_matrix = self.common_kmer_matrix.drop("seq", axis=1)
+            self.common_kmer_matrix["group"] = self.common_kmer_matrix.apply(
+                portek.assign_kmer_group_ovr, goi = self.goi, p_cols = p_cols, err_cols = err_cols,axis=1
+            )
+            self.common_kmer_matrix["exclusivity"] = self.common_kmer_matrix.apply(
+                portek.check_exclusivity, avg_cols = self.avg_cols, axis=1
+            )
+            self.common_kmer_stat_matrix = self.common_kmer_matrix.drop(self.sample_list, axis=1)
+
+        self.enriched_groups = [name.split("_")[0] for name in self.common_kmer_stat_matrix["group"].value_counts().index if "enriched" in name]
