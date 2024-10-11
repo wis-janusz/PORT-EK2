@@ -70,7 +70,7 @@ def main():
         _new_project(args.project_dir)
     elif args.tool == "find_k":
         optimal_k_finder = portek.FindOptimalKPipeline(args.project_dir, args.max_k)
-        optimal_k_finder.find_optimal_k(args.verbose)
+        optimal_k_finder.find_optimal_k()
     elif args.tool == "enriched":
         enriched_kmers_finder = portek.EnrichedKmersPipeline(args.project_dir, args.k, args.c, args.min_rmse)
         enriched_kmers_finder.get_kmers()
