@@ -70,7 +70,7 @@ class EnrichedKmersPipeline:
 
         except:
             raise FileNotFoundError(
-                f"No config.yaml file found in directory {project_dir}!"
+                f"No config.yaml file found in directory {project_dir} or the file has missing/wrong configuration!"
             )
 
         self.kmer_set = None

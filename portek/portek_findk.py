@@ -40,7 +40,7 @@ class FindOptimalKPipeline:
 
         except:
             raise FileNotFoundError(
-                f"No config.yaml file found in directory {project_dir}!"
+                f"No config.yaml file found in directory {project_dir} or the file has missing/wrong configuration!"
             )
 
     def __repr__(self) -> str:
