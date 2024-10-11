@@ -153,24 +153,28 @@ class FindOptimalKPipeline:
             score_k[k] = score
             mem_k[k] = df_mem
 
-        print("\nHere are the results of optimal k selection:")
-        for k in spec_k.keys():
-            print(f"k: {k}, specificity {round(spec_k[k],4)}, efficiency {round(eff_k[k],4)}, score {round(score_k[k], 4)}, data frame memory size {round(mem_k[k],2)} GB.")
+        with open(f"{self.project_dir}/output/k_selection_results", mode="w") as out_file:
+            out_file.write("\nHere are the results of optimal k selection:\n")
+            for k in spec_k.keys():
+                out_file.write(f"\nk: {k}, specificity {round(spec_k[k],4)}, efficiency {round(eff_k[k],4)}, score {round(score_k[k], 4)}, data frame memory size {round(mem_k[k],2)} GB.")
 
-        best_k = max(score_k, key=score_k.get)
-        small_score_k = {k:score for k, score in score_k.items() if mem_k[k] < 12}
-        if len(small_score_k) > 0:
-            best_small_k = max(small_score_k, key=small_score_k.get)
-        else:
-            best_small_k = None
-        if best_k == best_small_k:
-            print(f"\nPORT-EK thinks the best k value for your data is {best_k}!")
-        else:
-            print(f"\nPORT-EK thinks the best k value for your data is {best_k}!")
-            print(f"However, the resulting data frame is larger than 12 GB ({round(mem_k[best_k], 2)} GB)!")
-            if best_small_k == None:
-                print("Unfortunetaly, no k value produces a data frame smaller than 12 GB.")
+            best_k = max(score_k, key=score_k.get)
+            small_score_k = {k:score for k, score in score_k.items() if mem_k[k] < 12}
+            if len(small_score_k) > 0:
+                best_small_k = max(small_score_k, key=small_score_k.get)
             else:
-                print(f"The best k value that produces a data frame smaller than 12 GB is {best_small_k}.")
+                best_small_k = None
+            if best_k == best_small_k:
+                out_file.write(f"\n\nPORT-EK thinks the best k value for your data is {best_k}!")
+            else:
+                out_file.write(f"\n\nPORT-EK thinks the best k value for your data is {best_k}!")
+                out_file.write(f"However, the resulting data frame is larger than 12 GB ({round(mem_k[best_k], 2)} GB)!")
+                if best_small_k == None:
+                    out_file.write("Unfortunetaly, no k value produces a data frame smaller than 12 GB.")
+                else:
+                    out_file.write(f"The best k value that produces a data frame smaller than 12 GB is {best_small_k}.")
+
+        with open(f"{self.project_dir}/output/k_selection_results", mode="r") as out_file:
+            print(out_file.read())
             
 
