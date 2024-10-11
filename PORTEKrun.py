@@ -68,6 +68,8 @@ def main():
     elif args.tool == "enriched":
         enriched_kmers_finder = portek.EnrichedKmersPipeline(args.project_dir, args.k, args.c, args.min_rmse)
         enriched_kmers_finder.get_kmers()
+        enriched_kmers_finder.calc_kmer_stats("common")
+        enriched_kmers_finder.save_matrix("common")
 
     elif args.tool == "map":
         pass

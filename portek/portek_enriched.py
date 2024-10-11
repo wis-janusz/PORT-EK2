@@ -221,6 +221,7 @@ class EnrichedKmersPipeline:
                 portek.assign_kmer_group_ava,
                 p_cols=p_cols,
                 avg_cols=self.avg_cols,
+                freq_cols=self.freq_cols,
                 axis=1,
             )
             self.matrices[matrix_type]["exclusivity"] = self.matrices[matrix_type].apply(
@@ -263,6 +264,7 @@ class EnrichedKmersPipeline:
                 goi=self.goi,
                 p_cols=p_cols,
                 err_cols=err_cols,
+                freq_cols=self.freq_cols,
                 axis=1,
             )
             self.matrices[matrix_type]["exclusivity"] = self.matrices[matrix_type].apply(
@@ -274,3 +276,11 @@ class EnrichedKmersPipeline:
             for name in self.matrices[matrix_type]["group"].value_counts().index
             if "enriched" in name
         ]
+
+    def save_matrix(self, matrix_type: str, full: bool = False):
+        if full == True:
+            out_filename = f"{self.project_dir}/output/{matrix_type}_{self.k}mers.csv"
+            self.matrices[matrix_type].to_csv(out_filename, index_label="kmer")
+        else:
+            out_filename = f"{self.project_dir}/output/{matrix_type}_{self.k}mers_stats.csv"
+            self.matrices[matrix_type].drop(self.sample_list, axis=1).to_csv(out_filename, index_label="kmer")
