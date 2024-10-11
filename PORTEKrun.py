@@ -43,6 +43,12 @@ parser.add_argument(
     help="Allowed mismatches when re-examining rare k-mers with PORT-ek enriched. Omit if not re-examining rare k-mers."
 )
 
+parser.add_argument(
+    "--verbose",
+    help="Recieve additional output from some PORT-EK tools",
+    default=False,
+    action="store_true"
+)
 
 def _new_project(project_dir: str) -> None:
     if os.path.isdir(project_dir) == True:
@@ -64,7 +70,7 @@ def main():
         _new_project(args.project_dir)
     elif args.tool == "find_k":
         optimal_k_finder = portek.FindOptimalKPipeline(args.project_dir, args.max_k)
-        optimal_k_finder.find_optimal_k()
+        optimal_k_finder.find_optimal_k(args.verbose)
     elif args.tool == "enriched":
         enriched_kmers_finder = portek.EnrichedKmersPipeline(args.project_dir, args.k, args.c, args.min_rmse)
         enriched_kmers_finder.get_kmers()

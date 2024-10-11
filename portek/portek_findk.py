@@ -4,9 +4,7 @@ import yaml
 import pickle
 import numpy as np
 import pandas as pd
-from Bio import Align, SeqIO
-
-import portek
+from multiprocessing import Pool
 
 
 class FindOptimalKPipeline:
@@ -20,8 +18,8 @@ class FindOptimalKPipeline:
         else:
             raise NotADirectoryError("Project directory does not exist!")
 
-        if type(maxk) != int:
-            raise TypeError("Maximum k must by an integer!")
+        if type(maxk) != int or maxk < 5 or maxk%2==0:
+            raise TypeError("Maximum k must by an odd integer >= 5!")
         else:
             self.maxk = maxk
 
@@ -46,112 +44,124 @@ class FindOptimalKPipeline:
     def __repr__(self) -> str:
         pass
 
+
+    def _calc_metrics(self, k:int):
+        print(f"Calculating metrics for {k}-mers.")
+        kmer_set = set()
+        sample_list = []
+        kmer_set_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
+            f"*{k}mer_set.pkl"
+        )
+        sample_list_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
+            "*sample_list.pkl"
+        )
+
+        for filename in kmer_set_in_path:
+            with open(filename, mode="rb") as in_file:
+                partial_set = pickle.load(in_file)
+            kmer_set.update(partial_set)
+        if len(kmer_set) == 0:
+            print(f"No {k}-mers found. Skipping.")
+            return None
+
+        for filename in sample_list_in_path:
+            with open(filename, mode="rb") as in_file:
+                partial_list = pickle.load(in_file)
+            group = filename.stem.split("_")[0]
+            partial_list = [
+                f"{group}_{sample_name}" for sample_name in partial_list
+            ]
+            sample_list.extend(partial_list)
+        sample_list.sort()
+
+        all_kmer_matrix = pd.DataFrame(
+            0, index=list(kmer_set), columns=sample_list, dtype="uint8"
+        )
+        group_sample_dict = {
+            f"{group}": [
+                sample
+                for sample in sample_list
+                if sample.split("_")[0] == f"{group}"
+            ]
+            for group in self.sample_groups
+        }
+        in_path = pathlib.Path(f"{self.project_dir}/input/{k}mer_indices").glob(
+            "*_count.pkl"
+        )
+
+        for filename in in_path:
+            with open(filename, mode="rb") as in_file:
+                temp_dict = pickle.load(in_file)
+            sample_name = "_".join(filename.stem.split("_")[:-1])
+            count_dict = {f"{sample_name}": temp_dict.values()}
+            temp_df = pd.DataFrame(
+                count_dict, index=temp_dict.keys(), dtype="uint8"
+            )
+            all_kmer_matrix.update(temp_df)
+
+        for group in self.sample_groups:
+            all_kmer_matrix[f"{group}_avg"] = all_kmer_matrix.loc[
+                :, group_sample_dict[group]
+            ].mean(axis=1)
+
+        if 0 in all_kmer_matrix.index:
+            all_kmer_matrix = all_kmer_matrix.drop(0)
+        mean_count = all_kmer_matrix.loc[:, sample_list].mean(axis=None)
+        err_cols = []
+
+        if self.mode == "ovr":
+            for j in range(len(self.control_groups)):
+                err_name = f"{self.goi}-{self.control_groups[j]}_err_"
+                err_cols.append(err_name)
+                all_kmer_matrix[err_name] = (
+                    all_kmer_matrix[f"{self.goi}_avg"]
+                    - all_kmer_matrix[f"{self.control_groups[j]}_avg"]
+                )
+        elif self.mode == "ava":
+            for j in range(1, len(self.sample_groups)):
+                for i in range(j):
+                    err_name = (
+                        f"{self.sample_groups[i]}-{self.sample_groups[j]}_err"
+                    )
+                    err_cols.append(err_name)
+                    all_kmer_matrix[err_name] = (
+                        all_kmer_matrix[f"{self.sample_groups[i]}_avg"]
+                        - all_kmer_matrix[f"{self.sample_groups[j]}_avg"]
+                    )
+
+        all_kmer_matrix["RMSE"] = (
+            np.sqrt(((all_kmer_matrix[err_cols]) ** 2).mean(axis=1))
+            / mean_count
+        )
+
+        specificity = all_kmer_matrix["RMSE"].mean()
+        efficiency = len(all_kmer_matrix[all_kmer_matrix["RMSE"]>specificity])/len(all_kmer_matrix)
+        df_mem = (all_kmer_matrix.memory_usage(index=True, deep=True).sum())/1024/1024/1024
+        score = specificity*efficiency
+        print(
+            f"Done calculating metrics for {k}-mers."
+        )
+    
+        return k, specificity, efficiency, score, df_mem
+    
+
     def find_optimal_k(self):
         spec_k = {}
         eff_k = {}
         score_k = {}
         mem_k = {}
 
-        for k in range(5, self.maxk + 2, 2):
-            print(f"Calculating metrics for {k}-mers.")
-            kmer_set = set()
-            sample_list = []
-            kmer_set_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
-                f"*{k}mer_set.pkl"
-            )
-            sample_list_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
-                "*sample_list.pkl"
-            )
+        n_jobs = (self.maxk - 5)//2 + 1
+        k_to_test = [k for k in range(5,self.maxk+1,2)]
+        with Pool(n_jobs) as pool:
+            results = pool.map(self._calc_metrics, k_to_test)
 
-            for filename in kmer_set_in_path:
-                with open(filename, mode="rb") as in_file:
-                    partial_set = pickle.load(in_file)
-                kmer_set.update(partial_set)
-            if len(kmer_set) == 0:
-                print(f"No {k}-mers found. Skipping.")
-                continue
-
-            for filename in sample_list_in_path:
-                with open(filename, mode="rb") as in_file:
-                    partial_list = pickle.load(in_file)
-                group = filename.stem.split("_")[0]
-                partial_list = [
-                    f"{group}_{sample_name}" for sample_name in partial_list
-                ]
-                sample_list.extend(partial_list)
-            sample_list.sort()
-
-            all_kmer_matrix = pd.DataFrame(
-                0, index=list(kmer_set), columns=sample_list, dtype="uint8"
-            )
-            group_sample_dict = {
-                f"{group}": [
-                    sample
-                    for sample in sample_list
-                    if sample.split("_")[0] == f"{group}"
-                ]
-                for group in self.sample_groups
-            }
-            in_path = pathlib.Path(f"{self.project_dir}/input/{k}mer_indices").glob(
-                "*_count.pkl"
-            )
-
-            for filename in in_path:
-                with open(filename, mode="rb") as in_file:
-                    temp_dict = pickle.load(in_file)
-                sample_name = "_".join(filename.stem.split("_")[:-1])
-                count_dict = {f"{sample_name}": temp_dict.values()}
-                temp_df = pd.DataFrame(
-                    count_dict, index=temp_dict.keys(), dtype="uint8"
-                )
-                all_kmer_matrix.update(temp_df)
-
-            for group in self.sample_groups:
-                all_kmer_matrix[f"{group}_avg"] = all_kmer_matrix.loc[
-                    :, group_sample_dict[group]
-                ].mean(axis=1)
-
-            if 0 in all_kmer_matrix.index:
-                all_kmer_matrix = all_kmer_matrix.drop(0)
-            mean_count = all_kmer_matrix.loc[:, sample_list].mean(axis=None)
-            err_cols = []
-
-            if self.mode == "ovr":
-                for j in range(len(self.control_groups)):
-                    err_name = f"{self.goi}-{self.control_groups[j]}_err_"
-                    err_cols.append(err_name)
-                    all_kmer_matrix[err_name] = (
-                        all_kmer_matrix[f"{self.goi}_avg"]
-                        - all_kmer_matrix[f"{self.control_groups[j]}_avg"]
-                    )
-            elif self.mode == "ava":
-                for j in range(1, len(self.sample_groups)):
-                    for i in range(j):
-                        err_name = (
-                            f"{self.sample_groups[i]}-{self.sample_groups[j]}_err"
-                        )
-                        err_cols.append(err_name)
-                        all_kmer_matrix[err_name] = (
-                            all_kmer_matrix[f"{self.sample_groups[i]}_avg"]
-                            - all_kmer_matrix[f"{self.sample_groups[j]}_avg"]
-                        )
-
-            all_kmer_matrix["RMSE"] = (
-                np.sqrt(((all_kmer_matrix[err_cols]) ** 2).mean(axis=1))
-                / mean_count
-            )
-
-            specificity = all_kmer_matrix["RMSE"].mean()
-            efficiency = len(all_kmer_matrix[all_kmer_matrix["RMSE"]>specificity])/len(all_kmer_matrix)
-            df_mem = (all_kmer_matrix.memory_usage(index=True, deep=True).sum())/1024/1024/1024
-            score = specificity*efficiency
-            print(
-                f"Done calculating metrics for {k}-mers."
-            )
-            spec_k[k] = specificity
-            eff_k[k] = efficiency
-            score_k[k] = score
-            mem_k[k] = df_mem
+        for result in results:
+            if result != None:
+                spec_k[result[0]] = result[1]
+                eff_k[result[0]] = result[2]
+                score_k[result[0]] = result[3]
+                mem_k[result[0]] = result[4]
 
         with open(f"{self.project_dir}/output/k_selection_results", mode="w") as out_file:
             out_file.write("\nHere are the results of optimal k selection:\n")

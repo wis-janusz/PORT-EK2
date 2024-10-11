@@ -87,7 +87,7 @@ class EnrichedKmersPipeline:
     def __repr__(self) -> str:
         pass
 
-    def get_kmers(self, save_rare=False):
+    def get_kmers(self, save_rare:bool=False, verbose:bool=False):
         kmer_set = set()
         sample_list = []
         kmer_set_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
@@ -129,8 +129,9 @@ class EnrichedKmersPipeline:
         self.sample_group_dict = sample_group_dict
         print(f"\nImported {len(kmer_set)} kmers and {len(sample_list)} samples.")
 
-        counter = 1
-        tot_files = len(sample_list)
+        if verbose == True:
+            counter = 1
+            tot_files = len(sample_list)
         in_path = pathlib.Path(f"{self.project_dir}/input/{self.k}mer_indices").glob(
             "*_count.pkl"
         )
@@ -142,12 +143,13 @@ class EnrichedKmersPipeline:
             count_dict = {f"{sample_name}": temp_dict.values()}
             temp_df = pd.DataFrame(count_dict, index=temp_dict.keys(), dtype="uint8")
             all_kmer_matrix.update(temp_df)
-            print(
-                f"{counter} of {tot_files} indices done.",
-                end="\r",
-                flush=True,
-            )
-            counter += 1
+            if verbose == True:
+                print(
+                    f"Loaded {self.k}-mers from {counter} of {tot_files} samples",
+                    end="\r",
+                    flush=True,
+                )
+                counter += 1
 
         all_kmer_matrix.index = all_kmer_matrix.index.map(
             lambda id: portek.decode_kmer(id, self.k)
