@@ -52,16 +52,18 @@ def calc_kmer_pvalue(kmer: str, first_group, sec_group, matrix: pd.DataFrame):
     return test_result.pvalue
 
 
-def assign_kmer_group_ava(row: pd.Series, p_cols: list, avg_cols: list):
+def assign_kmer_group_ava(row: pd.Series, p_cols: list, avg_cols: list, freq_cols: list):
     max_group = row[avg_cols].idxmax()
     max_group = max_group.split("_")[0]
     rel_p_cols = [col for col in p_cols if max_group in col]
     if all(row[rel_p_cols] < 0.01):
         return f"{max_group}_enriched"
+    elif all(row[freq_cols] > 0.8):
+        return "conserved"
     else:
         return "not_significant"
 
-def assign_kmer_group_ovr(row: pd.Series, goi:str, p_cols: list, err_cols: list):
+def assign_kmer_group_ovr(row: pd.Series, goi:str, p_cols: list, err_cols: list, freq_cols: list):
    
     if all(row[p_cols] < 0.01) and all(row[err_cols] > 0):
         return f"{goi}_enriched"
@@ -69,6 +71,8 @@ def assign_kmer_group_ovr(row: pd.Series, goi:str, p_cols: list, err_cols: list)
         return "control_enriched"
     elif any(row[p_cols] < 0.01):
         return "group_dependent"
+    elif all(row[freq_cols] > 0.8):
+        return "conserved"
     else:
         return "not_significant"
 
