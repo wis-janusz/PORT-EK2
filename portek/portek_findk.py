@@ -2,9 +2,9 @@ import os
 import pathlib
 import yaml
 import pickle
+import multiprocessing
 import numpy as np
 import pandas as pd
-from multiprocessing import Pool
 
 
 class FindOptimalKPipeline:
@@ -46,11 +46,11 @@ class FindOptimalKPipeline:
 
 
     def _calc_metrics(self, k:int):
-        print(f"Calculating metrics for {k}-mers.")
+        print(f"Calculating metrics for {k}-mers. PID: {os.getpid()}", flush=True)
         kmer_set = set()
         sample_list = []
         kmer_set_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
-            f"*{k}mer_set.pkl"
+            f"*_{k}mer_set.pkl"
         )
         sample_list_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
             "*sample_list.pkl"
@@ -139,7 +139,8 @@ class FindOptimalKPipeline:
         df_mem = (all_kmer_matrix.memory_usage(index=True, deep=True).sum())/1024/1024/1024
         score = specificity*efficiency
         print(
-            f"Done calculating metrics for {k}-mers."
+            f"Done calculating metrics for {k}-mers.",
+            flush=True
         )
     
         return k, specificity, efficiency, score, df_mem
@@ -151,8 +152,9 @@ class FindOptimalKPipeline:
         score_k = {}
         mem_k = {}
         k_to_test = [k for k in range(5,self.maxk+1,2)]
-        with Pool(n_jobs) as pool:
-            results = pool.map(self._calc_metrics, k_to_test)
+        with multiprocessing.get_context("forkserver").Pool(n_jobs) as pool:
+            results = pool.map(self._calc_metrics, k_to_test, chunksize=1)
+            print(results)
 
         for result in results:
             if result != None:
