@@ -145,13 +145,11 @@ class FindOptimalKPipeline:
         return k, specificity, efficiency, score, df_mem
     
 
-    def find_optimal_k(self):
+    def find_optimal_k(self, n_jobs:int=4):
         spec_k = {}
         eff_k = {}
         score_k = {}
         mem_k = {}
-
-        n_jobs = (self.maxk - 5)//2 + 1
         k_to_test = [k for k in range(5,self.maxk+1,2)]
         with Pool(n_jobs) as pool:
             results = pool.map(self._calc_metrics, k_to_test)
