@@ -91,7 +91,7 @@ class EnrichedKmersPipeline:
         kmer_set = set()
         sample_list = []
         kmer_set_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
-            f"*{self.k}mer_set.pkl"
+            f"*_{self.k}mer_set.pkl"
         )
         sample_list_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
             "*sample_list.pkl"
@@ -127,7 +127,7 @@ class EnrichedKmersPipeline:
         self.kmer_set = kmer_set
         self.sample_list = sample_list
         self.sample_group_dict = sample_group_dict
-        print(f"\nImported {len(kmer_set)} kmers and {len(sample_list)} samples.")
+        print(f"Imported {len(kmer_set)} kmers and {len(sample_list)} samples.")
 
         if verbose == True:
             counter = 1
@@ -184,7 +184,7 @@ class EnrichedKmersPipeline:
         )
 
     def calc_kmer_stats(self, matrix_type: str):
-
+        print(f"Identyfying enriched {self.k}-mers.")
         if self.mode == "ava":
             self.matrices[matrix_type]["seq"] = self.matrices[matrix_type].index
             err_cols = []
