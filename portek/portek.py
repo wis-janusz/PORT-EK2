@@ -32,15 +32,15 @@ def filter_kmers(kmer_df: pd.DataFrame, freq_cols: list, cons_thr=0.01) -> pd.Da
 
 def calc_kmer_pvalue(kmer: str, first_group, sec_group, matrix: pd.DataFrame):
     first_obs = (
-        matrix.loc[kmer, first_group]
-        .value_counts(sort=False)
-        .reindex([0, 1], fill_value=0)
+        (matrix.loc[kmer, first_group]>0)
+        .value_counts()
+        .reindex([False, True], fill_value=0)
         .to_numpy()
     )
     sec_obs = (
-        matrix.loc[kmer, sec_group]
-        .value_counts(sort=False)
-        .reindex([0, 1], fill_value=0)
+        (matrix.loc[kmer, sec_group]>0)
+        .value_counts()
+        .reindex([False, True], fill_value=0)
         .to_numpy()
     )
     cont_table = np.concatenate([first_obs, sec_obs]).reshape(2, 2).T
