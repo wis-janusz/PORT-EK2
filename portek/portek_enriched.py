@@ -2,6 +2,8 @@ import os
 import pathlib
 import yaml
 import pickle
+import multiprocessing
+
 import numpy as np
 import pandas as pd
 from Bio import Align, SeqIO
@@ -81,13 +83,13 @@ class EnrichedKmersPipeline:
             "rare": None,
             "common": None,
             "rare_similar": None,
-            "enriched": None
+            "enriched": None,
         }
 
     def __repr__(self) -> str:
         pass
 
-    def get_kmers(self, save_rare:bool=False, verbose:bool=False):
+    def get_kmers(self, save_rare: bool = False, verbose: bool = False):
         kmer_set = set()
         sample_list = []
         kmer_set_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
@@ -226,11 +228,11 @@ class EnrichedKmersPipeline:
                 freq_cols=self.freq_cols,
                 axis=1,
             )
-            self.matrices[matrix_type]["exclusivity"] = self.matrices[matrix_type].apply(
-                portek.check_exclusivity, avg_cols=self.avg_cols, axis=1
-            )
+            self.matrices[matrix_type]["exclusivity"] = self.matrices[
+                matrix_type
+            ].apply(portek.check_exclusivity, avg_cols=self.avg_cols, axis=1)
 
-        else:
+        elif self.mode == "ovr":
             self.matrices[matrix_type]["seq"] = self.matrices[matrix_type].index
             err_cols = []
             p_cols = []
@@ -243,7 +245,9 @@ class EnrichedKmersPipeline:
                     self.matrices[matrix_type][f"{self.goi}_avg"]
                     - self.matrices[matrix_type][f"{self.control_groups[j]}_avg"]
                 )
-                self.matrices[matrix_type][p_name] = self.matrices[matrix_type]["seq"].apply(
+                self.matrices[matrix_type][p_name] = self.matrices[matrix_type][
+                    "seq"
+                ].apply(
                     portek.calc_kmer_pvalue,
                     args=(
                         self.sample_group_dict[self.goi],
@@ -269,9 +273,9 @@ class EnrichedKmersPipeline:
                 freq_cols=self.freq_cols,
                 axis=1,
             )
-            self.matrices[matrix_type]["exclusivity"] = self.matrices[matrix_type].apply(
-                portek.check_exclusivity, avg_cols=self.avg_cols, axis=1
-            )
+            self.matrices[matrix_type]["exclusivity"] = self.matrices[
+                matrix_type
+            ].apply(portek.check_exclusivity, avg_cols=self.avg_cols, axis=1)
 
         self.enriched_groups = [
             name.split("_")[0]
@@ -279,10 +283,126 @@ class EnrichedKmersPipeline:
             if "enriched" in name
         ]
 
+
+    def _load_rare_graphs(self,m):
+        graph_in_path = pathlib.Path(f"{self.project_dir}/temp/").glob(
+            f"*_{m}_rare_graph.pkl"
+        )
+        graphs = {} 
+        for filename in graph_in_path:
+            with open(filename, mode="rb") as in_file:
+                graph = pickle.load(in_file)
+            group = filename.stem.split("_")[0]
+            graphs[group] = graph
+
+        if self.mode == "ava":
+            if len(graphs) != len(self.sample_groups):
+                return None
+        elif self.mode == "ovr":
+            if len(graphs) != 2:
+                return None
+       
+        return graphs
+        
+
+    def _save_rare_graphs(self, graphs:dict, m):
+        for name, graph in graphs.items():
+            with open(f"{self.project_dir}/temp/{name}_{m}_rare_graph.pkl", mode="wb") as out_file:
+                pickle.dump(graph, out_file)
+
+
+    def reexamine_rare(self, m, n_jobs):
+        if type(m) != int or m > self.k or m < 1:
+            raise ValueError("Allowed number of mismatches rare_m must be between 1 and k!")
+        graphs = self._load_rare_graphs(m)
+
+        if self.mode == "ava":
+            common_rare_list_pairs = {group: [] for group in self.sample_groups}
+            for group in common_rare_list_pairs.keys():
+                common_rare_list_pairs[group].append(
+                    list(
+                        self.matrices["common"]
+                        .loc[self.matrices["common"]["group"] == f"{group}_enriched"]
+                        .index
+                    )
+                )
+                common_rare_list_pairs[group].append(
+                    list(
+                        self.matrices["rare"]
+                        .loc[
+                            self.matrices["rare"][f"{group}_avg"]
+                            == self.matrices["rare"][self.avg_cols].max(axis=1)
+                        ]
+                        .index
+                    )
+                )
+        elif self.mode == "ovr":
+            common_rare_list_pairs = {"goi": [], "control": []}
+            common_rare_list_pairs["goi"].append(
+                list(
+                    self.matrices["common"]
+                    .loc[self.matrices["common"]["group"] == f"{self.goi}_enriched"]
+                    .index
+                )
+            )
+            common_rare_list_pairs["goi"].append(
+                list(
+                    self.matrices["rare"]
+                    .loc[
+                        self.matrices["rare"][f"{self.goi}_avg"]
+                        == self.matrices["rare"][self.avg_cols].max(axis=1)
+                    ]
+                    .index
+                )
+            )
+            common_rare_list_pairs["control"].append(
+                list(
+                    self.matrices["common"]
+                    .loc[self.matrices["common"]["group"] == f"control_enriched"]
+                    .index
+                )
+            )
+            common_rare_list_pairs["control"].append(
+                list(
+                    self.matrices["rare"]
+                    .loc[
+                        self.matrices["rare"][f"{self.goi}_avg"]
+                        == self.matrices["rare"][self.avg_cols].min(axis=1)
+                    ]
+                    .index
+                )
+            )
+        if graphs == None:
+            print("Calculating similarity graphs.")
+            common_rare_list_pairs_pool_input = [[key]+value+[m] for key, value in common_rare_list_pairs.items()]
+            with multiprocessing.get_context("forkserver").Pool(n_jobs) as pool:
+                graphs = pool.starmap(
+                    portek.build_similarity_graph_two_list,
+                    common_rare_list_pairs_pool_input,
+                    chunksize=1,
+                )
+            graphs = {name:graph for (name, graph) in graphs}
+            self._save_rare_graphs(graphs, m)
+        else:
+            print("Found similarity graphs in project directory.")
+            graphs = self._load_rare_graphs(m)
+
+        kmers_to_reexamine = []
+        for group in common_rare_list_pairs.keys():
+            kmers_to_reexamine.extend([kmer for kmer in common_rare_list_pairs[group][1] if kmer in graphs[group].nodes])
+        
+        self.matrices["rare_similar"] = self.matrices["rare"].loc[kmers_to_reexamine]
+        self.calc_kmer_stats("rare_similar")
+        
+
     def save_matrix(self, matrix_type: str, full: bool = False):
         if full == True:
             out_filename = f"{self.project_dir}/output/{matrix_type}_{self.k}mers.csv"
             self.matrices[matrix_type].to_csv(out_filename, index_label="kmer")
         else:
-            out_filename = f"{self.project_dir}/output/{matrix_type}_{self.k}mers_stats.csv"
-            self.matrices[matrix_type].drop(self.sample_list, axis=1).to_csv(out_filename, index_label="kmer")
+            out_filename = (
+                f"{self.project_dir}/output/{matrix_type}_{self.k}mers_stats.csv"
+            )
+            self.matrices[matrix_type].drop(self.sample_list, axis=1).to_csv(
+                out_filename, index_label="kmer"
+            )

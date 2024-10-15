@@ -1,6 +1,6 @@
 enriched k_mer selection in one module - portek_enriched
 mapping in one module - portek_map
 classification in one modeule - portek_classify
-change gene dict definition and gene mapping as in analysis branch
 move k_mer generation to optimal k selection and implement multiprocessing
 add enriched/conserved/variable genome regions plots
+clean up prints and add optional verbosity

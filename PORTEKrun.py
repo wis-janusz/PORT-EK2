@@ -46,7 +46,8 @@ parser.add_argument(
 
 parser.add_argument(
     "--rare_m",
-    help="Allowed mismatches when re-examining rare k-mers with PORT-ek enriched. Omit if not re-examining rare k-mers."
+    help="Allowed mismatches when re-examining rare k-mers with PORT-ek enriched. Omit if not re-examining rare k-mers.",
+    type=int
 )
 
 parser.add_argument(
@@ -54,6 +55,13 @@ parser.add_argument(
     help="Recieve additional output from some PORT-EK tools",
     default=False,
     action="store_true"
+)
+
+parser.add_argument(
+    "--n_jobs",
+    help="Number of processes used in PORT-EK find and PORT-EK enriched (default 4)",
+    default=4,
+    type=int
 )
 
 def _new_project(project_dir: str) -> None:
@@ -78,13 +86,22 @@ def main():
 
     elif args.tool == "find_k":
         optimal_k_finder = portek.FindOptimalKPipeline(args.project_dir, args.min_k, args.max_k)
-        optimal_k_finder.find_optimal_k()
-        
+        optimal_k_finder.find_optimal_k(args.n_jobs)
+
     elif args.tool == "enriched":
         enriched_kmers_finder = portek.EnrichedKmersPipeline(args.project_dir, args.k, args.c, args.min_rmse)
-        enriched_kmers_finder.get_kmers()
-        enriched_kmers_finder.calc_kmer_stats("common")
-        enriched_kmers_finder.save_matrix("common")
+        if args.rare_m == None:
+            enriched_kmers_finder.get_kmers()
+            enriched_kmers_finder.calc_kmer_stats("common")
+            enriched_kmers_finder.save_matrix("common")
+        else:
+            enriched_kmers_finder.get_kmers(save_rare=True)
+            enriched_kmers_finder.calc_kmer_stats("common")
+            enriched_kmers_finder.reexamine_rare(args.rare_m, args.n_jobs)
+            enriched_kmers_finder.save_matrix("common")
+            enriched_kmers_finder.save_matrix("rare_similar")
+
+
 
     elif args.tool == "map":
         pass

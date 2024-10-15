@@ -84,7 +84,7 @@ def check_exclusivity(row: pd.Series, avg_cols: list) -> str:
 
 
 def build_similarity_graph_two_list(
-    query_list, target_list, mismatch_treshold: int
+    name, query_list, target_list, mismatch_treshold: int
 ) -> nx.Graph:
 
     tot = len(query_list)
@@ -108,7 +108,7 @@ def build_similarity_graph_two_list(
         i += 1
 
     silmilarity_graph = nx.Graph(similarity_edges)
-    return silmilarity_graph
+    return name, silmilarity_graph
 
 
 def calc_agg_freq(kmer_list, sample_list, source_df):
