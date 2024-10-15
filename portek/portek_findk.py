@@ -12,14 +12,19 @@ class FindOptimalKPipeline:
     FindOptimalKPipeline:
     """
 
-    def __init__(self, project_dir: str, maxk: int) -> None:
+    def __init__(self, project_dir: str, mink:int, maxk: int) -> None:
         if os.path.isdir(project_dir) == True:
             self.project_dir = project_dir
         else:
             raise NotADirectoryError("Project directory does not exist!")
+        
+        if type(mink) != int or mink < 5 or mink%2==0 or mink > maxk:
+            raise TypeError("Minimum k must by an odd integer not smaller than 5 and not bigger than maximum k!")
+        else:
+            self.mink = mink
 
-        if type(maxk) != int or maxk < 5 or maxk%2==0:
-            raise TypeError("Maximum k must by an odd integer >= 5!")
+        if type(maxk) != int or maxk < 5 or maxk%2==0 or maxk < mink:
+            raise TypeError("Maximum k must by an odd integer not smaller than 5 and not smaller than minimum k!")
         else:
             self.maxk = maxk
 
@@ -40,10 +45,6 @@ class FindOptimalKPipeline:
             raise FileNotFoundError(
                 f"No config.yaml file found in directory {project_dir} or the file has missing/wrong configuration!"
             )
-
-    def __repr__(self) -> str:
-        pass
-
 
     def _calc_metrics(self, k:int):
         print(f"Calculating metrics for {k}-mers. PID: {os.getpid()}", flush=True)
@@ -151,7 +152,7 @@ class FindOptimalKPipeline:
         eff_k = {}
         score_k = {}
         mem_k = {}
-        k_to_test = [k for k in range(5,self.maxk+1,2)]
+        k_to_test = [k for k in range(self.mink ,self.maxk+1,2)]
         with multiprocessing.get_context("forkserver").Pool(n_jobs) as pool:
             results = pool.map(self._calc_metrics, k_to_test, chunksize=1)
             print(results)

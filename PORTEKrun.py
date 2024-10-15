@@ -13,10 +13,16 @@ parser.add_argument(
     help="path to the project directory. Must not exist for PORTEKrun.py new, must exist for all other tools",
     type=str,
 )
+parser.add_argument(
+    "--min_k",
+    help="Minimum k value to test with PORT-EK find_k (default 5)",
+    type=int,
+    default=5
 
+)
 parser.add_argument(
     "--max_k",
-    help="Maximum k value to test with PORT-EK find_k. PORT-EK will test all odd k values from 5 up to and incliding max_k.",
+    help="Maximum k value to test with PORT-EK find_k. PORT-EK will test all odd k values from min_k up to and incliding max_k.",
     type=int
 )
 
@@ -66,11 +72,14 @@ def main():
     args = parser.parse_args()
     if type(args.project_dir) != str:
         raise ValueError("Please provide a valid project directory name.")
+    
     if args.tool == "new":
         _new_project(args.project_dir)
+
     elif args.tool == "find_k":
-        optimal_k_finder = portek.FindOptimalKPipeline(args.project_dir, args.max_k)
+        optimal_k_finder = portek.FindOptimalKPipeline(args.project_dir, args.min_k, args.max_k)
         optimal_k_finder.find_optimal_k()
+        
     elif args.tool == "enriched":
         enriched_kmers_finder = portek.EnrichedKmersPipeline(args.project_dir, args.k, args.c, args.min_rmse)
         enriched_kmers_finder.get_kmers()
@@ -79,8 +88,10 @@ def main():
 
     elif args.tool == "map":
         pass
+
     elif args.tool == "classify":
         pass
+
     else:
         raise ValueError("Unrecoginzed PORT-EK tool requested. Choose one of: new, find_k, enriched, map, classify.")
 
