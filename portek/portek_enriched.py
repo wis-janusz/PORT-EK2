@@ -214,7 +214,7 @@ class EnrichedKmersPipeline:
                             self.matrices[matrix_type],
                         ),
                     )
-                    with np.errstate(divide='ignore'):
+                    with np.errstate(divide="ignore"):
                         self.matrices[matrix_type][f"-log10_{p_name}"] = -np.log10(
                             self.matrices[matrix_type][p_name]
                         )
@@ -289,12 +289,11 @@ class EnrichedKmersPipeline:
         self.err_cols = err_cols
         self.p_cols = p_cols
 
-
-    def _load_rare_graphs(self,m):
+    def _load_rare_graphs(self, m):
         graph_in_path = pathlib.Path(f"{self.project_dir}/temp/").glob(
             f"*_{m}_rare_graph.pkl"
         )
-        graphs = {} 
+        graphs = {}
         for filename in graph_in_path:
             with open(filename, mode="rb") as in_file:
                 graph = pickle.load(in_file)
@@ -307,19 +306,21 @@ class EnrichedKmersPipeline:
         elif self.mode == "ovr":
             if len(graphs) != 2:
                 return None
-       
+
         return graphs
-        
 
-    def _save_rare_graphs(self, graphs:dict, m):
+    def _save_rare_graphs(self, graphs: dict, m):
         for name, graph in graphs.items():
-            with open(f"{self.project_dir}/temp/{name}_{m}_rare_graph.pkl", mode="wb") as out_file:
+            with open(
+                f"{self.project_dir}/temp/{name}_{m}_rare_graph.pkl", mode="wb"
+            ) as out_file:
                 pickle.dump(graph, out_file)
-
 
     def reexamine_rare(self, m, n_jobs):
         if type(m) != int or m > self.k or m < 1:
-            raise ValueError("Allowed number of mismatches rare_m must be between 1 and k!")
+            raise ValueError(
+                "Allowed number of mismatches rare_m must be between 1 and k!"
+            )
         graphs = self._load_rare_graphs(m)
 
         if self.mode == "ava":
@@ -380,14 +381,16 @@ class EnrichedKmersPipeline:
             )
         if graphs == None:
             print("Calculating similarity graphs.")
-            common_rare_list_pairs_pool_input = [[key]+value+[m] for key, value in common_rare_list_pairs.items()]
+            common_rare_list_pairs_pool_input = [
+                [key] + value + [m] for key, value in common_rare_list_pairs.items()
+            ]
             with multiprocessing.get_context("forkserver").Pool(n_jobs) as pool:
                 graphs = pool.starmap(
                     portek.build_similarity_graph_two_list,
                     common_rare_list_pairs_pool_input,
                     chunksize=1,
                 )
-            graphs = {name:graph for (name, graph) in graphs}
+            graphs = {name: graph for (name, graph) in graphs}
             self._save_rare_graphs(graphs, m)
         else:
             print("Found similarity graphs in project directory.")
@@ -395,27 +398,70 @@ class EnrichedKmersPipeline:
 
         kmers_to_reexamine = []
         for group in common_rare_list_pairs.keys():
-            kmers_to_reexamine.extend([kmer for kmer in common_rare_list_pairs[group][1] if kmer in graphs[group].nodes])
-        
+            kmers_to_reexamine.extend(
+                [
+                    kmer
+                    for kmer in common_rare_list_pairs[group][1]
+                    if kmer in graphs[group].nodes
+                ]
+            )
+
         self.matrices["rare_similar"] = self.matrices["rare"].loc[kmers_to_reexamine]
         self.calc_kmer_stats("rare_similar")
-        
 
-    def plot_volcanos(self, matrix_type): 
-            for i in range(len(self.err_cols)):
-                err = self.err_cols[i]
-                logp = f"-log10_{self.p_cols[i]}"
-                fig, ax = plt.subplots()
-                plt.axhline(y=-np.log10(0.01), color = 'black')
-                plt.axvline(x=self.min_rmse, color="black", linestyle="--")
-                plt.axvline(x=-self.min_rmse, color="black", linestyle="--")
-                ax.autoscale()
-                # ax.set_title('Average kmer count change')
-                ax.set_xlabel('Average kmer count change')
-                ax.set_ylabel('-log10 of p-value')
-                sns.scatterplot(data=self.matrices[matrix_type], x=err, y = logp, s=10, linewidth = 0, hue='group')
-                plt.savefig(f"{self.project_dir}/output/{err}_{matrix_type}_{self.k}-mers_volcano.svg", dpi = 600, format = "svg")
+    def plot_volcanos(self, matrix_type):
+        for i in range(len(self.err_cols)):
+            err = self.err_cols[i]
+            group1 = err.split("_")[0].split("-")[0]
+            group2 = err.split("_")[0].split("-")[1]
+            logp = f"-log10_{self.p_cols[i]}"
+            fig, ax = plt.subplots()
+            plt.axhline(y=-np.log10(0.01), color="black")
+            plt.axvline(x=self.min_rmse, color="black", linestyle="--")
+            plt.axvline(x=-self.min_rmse, color="black", linestyle="--")
+            ax.autoscale()
+            ax.set_title(f"{group1} vs {group2} volcano plot")
+            ax.set_xlabel("Average kmer count change")
+            ax.set_ylabel("-log10 of p-value")
+            sns.scatterplot(
+                data=self.matrices[matrix_type],
+                x=err,
+                y=logp,
+                s=10,
+                linewidth=0,
+                hue="group",
+            )
+            plt.savefig(
+                f"{self.project_dir}/output/{err}_{matrix_type}_{self.k}-mers_volcano.svg",
+                dpi=600,
+                format="svg",
+            )
 
+    def get_enriched_kmers(self):
+        if self.matrices["rare_similar"] == None:
+            self.matrices["enriched"] = self.matrices["common"].loc[
+                (self.matrices["common"]["group"] != "not_significant")
+                & (self.matrices["common"]["group"] != "group_dependent")
+                & (self.matrices["common"]["RMSE"] > self.min_rmse)
+                | (self.matrices["common"]["group"] == "conserved")
+            ]
+        else:
+            self.matrices["enriched"] = pd.concat(
+                [
+                    self.matrices["common"].loc[
+                        ((self.matrices["common"]["group"] != "not_significant")
+                        & (self.matrices["common"]["group"] != "group_dependent")
+                        & (self.matrices["common"]["RMSE"] > self.min_rmse))
+                        | (self.matrices["common"]["group"] == "conserved")
+                    ],
+                    self.matrices["rare_similar"].loc[
+                        (self.matrices["rare_similar"]["group"] != "not_significant")
+                        & (self.matrices["rare_similar"]["group"] != "group_dependent")
+                        & (self.matrices["rare_similar"]["RMSE"] > self.min_rmse)
+                        | (self.matrices["common"]["group"] == "conserved")
+                    ]                    
+                ]
+            )
 
     def save_matrix(self, matrix_type: str, full: bool = False):
         if full == True:
