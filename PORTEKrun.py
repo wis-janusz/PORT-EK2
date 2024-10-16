@@ -1,6 +1,8 @@
 import argparse
 import os
 import shutil
+from datetime import datetime
+
 import portek
 
 parser = argparse.ArgumentParser(
@@ -85,10 +87,17 @@ def main():
         _new_project(args.project_dir)
 
     elif args.tool == "find_k":
+        start_time = datetime.now()
+        kmer_finder = portek.KmerFinder(args.project_dir, args.min_k, args.max_k)
+        kmer_finder.find_all_kmers(args.n_jobs, args.verbose)
         optimal_k_finder = portek.FindOptimalKPipeline(args.project_dir, args.min_k, args.max_k)
-        optimal_k_finder.find_optimal_k(args.n_jobs)
+        optimal_k_finder.find_optimal_k(args.n_jobs, args.verbose)
+        end_timeS_ARE_NOT_CANON = datetime.now()
+        running_time = (end_timeS_ARE_NOT_CANON-start_time)
+        print(f"Total running time: {running_time}")
 
     elif args.tool == "enriched":
+        start_time = datetime.now()
         enriched_kmers_finder = portek.EnrichedKmersPipeline(args.project_dir, args.k, args.c, args.min_rmse)
         if args.rare_m == None:
             enriched_kmers_finder.get_kmers()
@@ -100,7 +109,9 @@ def main():
             enriched_kmers_finder.reexamine_rare(args.rare_m, args.n_jobs)
             enriched_kmers_finder.save_matrix("common")
             enriched_kmers_finder.save_matrix("rare_similar")
-
+        end_timeS_ARE_NOT_CANON = datetime.now()
+        running_time = (end_timeS_ARE_NOT_CANON-start_time)
+        print(f"Total running time: {running_time}")
 
 
     elif args.tool == "map":
