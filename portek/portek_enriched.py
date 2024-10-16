@@ -3,7 +3,8 @@ import pathlib
 import yaml
 import pickle
 import multiprocessing
-
+import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 import pandas as pd
 from Bio import Align, SeqIO
@@ -79,6 +80,8 @@ class EnrichedKmersPipeline:
         self.sample_list = None
         self.sample_group_dict = None
         self.enriched_groups = None
+        self.err_cols = None
+        self.p_cols = None
         self.matrices = {
             "rare": None,
             "common": None,
@@ -283,6 +286,8 @@ class EnrichedKmersPipeline:
             for name in self.matrices[matrix_type]["group"].value_counts().index
             if "enriched" in name
         ]
+        self.err_cols = err_cols
+        self.p_cols = p_cols
 
 
     def _load_rare_graphs(self,m):
@@ -395,6 +400,22 @@ class EnrichedKmersPipeline:
         self.matrices["rare_similar"] = self.matrices["rare"].loc[kmers_to_reexamine]
         self.calc_kmer_stats("rare_similar")
         
+
+    def plot_volcanos(self, matrix_type): 
+            for i in range(len(self.err_cols)):
+                err = self.err_cols[i]
+                logp = f"-log10_{self.p_cols[i]}"
+                fig, ax = plt.subplots()
+                plt.axhline(y=-np.log10(0.01), color = 'black')
+                plt.axvline(x=self.min_rmse, color="black", linestyle="--")
+                plt.axvline(x=-self.min_rmse, color="black", linestyle="--")
+                ax.autoscale()
+                # ax.set_title('Average kmer count change')
+                ax.set_xlabel('Average kmer count change')
+                ax.set_ylabel('-log10 of p-value')
+                sns.scatterplot(data=self.matrices[matrix_type], x=err, y = logp, s=10, linewidth = 0, hue='group')
+                plt.savefig(f"{self.project_dir}/output/{err}_{matrix_type}_{self.k}-mers_volcano.svg", dpi = 600, format = "svg")
+
 
     def save_matrix(self, matrix_type: str, full: bool = False):
         if full == True:

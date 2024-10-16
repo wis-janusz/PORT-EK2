@@ -102,11 +102,14 @@ def main():
         if args.rare_m == None:
             enriched_kmers_finder.get_kmers()
             enriched_kmers_finder.calc_kmer_stats("common")
+            enriched_kmers_finder.plot_volcanos("common")       
             enriched_kmers_finder.save_matrix("common")
         else:
             enriched_kmers_finder.get_kmers(save_rare=True)
             enriched_kmers_finder.calc_kmer_stats("common")
             enriched_kmers_finder.reexamine_rare(args.rare_m, args.n_jobs)
+            enriched_kmers_finder.plot_volcanos("common")   
+            enriched_kmers_finder.plot_volcanos("rare_similar")   
             enriched_kmers_finder.save_matrix("common")
             enriched_kmers_finder.save_matrix("rare_similar")
         end_timeS_ARE_NOT_CANON = datetime.now()
