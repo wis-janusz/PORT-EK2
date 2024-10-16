@@ -179,11 +179,11 @@ class FindOptimalKPipeline:
                 out_file.write(f"\n\nPORT-EK thinks the best k value for your data is {best_k}!")
             else:
                 out_file.write(f"\n\nPORT-EK thinks the best k value for your data is {best_k}!")
-                out_file.write(f"However, the resulting data frame is larger than 12 GB ({round(mem_k[best_k], 2)} GB)!")
+                out_file.write(f"\nHowever, the resulting data frame is larger than 12 GB ({round(mem_k[best_k], 2)} GB)!")
                 if best_small_k == None:
-                    out_file.write("Unfortunetaly, no k value produces a data frame smaller than 12 GB.")
+                    out_file.write("\nUnfortunetaly, no k value produces a data frame smaller than 12 GB.")
                 else:
-                    out_file.write(f"The best k value that produces a data frame smaller than 12 GB is {best_small_k}.")
+                    out_file.write(f"\nThe best k value that produces a data frame smaller than 12 GB is {best_small_k}.")
 
         with open(f"{self.project_dir}/output/k_selection_results", mode="r") as out_file:
             print(out_file.read())
