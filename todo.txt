@@ -1,4 +1,3 @@
-enriched k_mer selection in one module - portek_enriched
 mapping in one module - portek_map
 classification in one modeule - portek_classify
 add enriched/conserved/variable genome regions plots
