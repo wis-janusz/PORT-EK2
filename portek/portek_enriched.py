@@ -211,9 +211,10 @@ class EnrichedKmersPipeline:
                             self.matrices[matrix_type],
                         ),
                     )
-                    self.matrices[matrix_type][f"-log10_{p_name}"] = -np.log10(
-                        self.matrices[matrix_type][p_name]
-                    )
+                    with np.errstate(divide='ignore'):
+                        self.matrices[matrix_type][f"-log10_{p_name}"] = -np.log10(
+                            self.matrices[matrix_type][p_name]
+                        )
             self.matrices[matrix_type]["RMSE"] = np.sqrt(
                 ((self.matrices[matrix_type][err_cols]) ** 2).mean(axis=1)
             )
