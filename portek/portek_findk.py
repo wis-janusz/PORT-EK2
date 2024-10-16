@@ -140,7 +140,7 @@ class KmerFinder:
         for k in k_to_test:
             indices_path = f"{self.project_dir}/input/{k}mer_indices/"
             if os.path.exists(indices_path) == False:
-                os.mkdir()
+                os.mkdir(indices_path)
             groups = zip(self.sample_groups, self.seq_lists)
             for group, seq_list in groups:
                 find_kmers_pool_input.append([k, group, seq_list, verbose])
