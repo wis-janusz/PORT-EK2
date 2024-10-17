@@ -6,6 +6,7 @@ import multiprocessing
 import numpy as np
 import pandas as pd
 from collections import defaultdict
+from datetime import datetime
 from Bio import SeqIO
 
 
@@ -194,6 +195,7 @@ class FindOptimalKPipeline:
             )
 
     def _calc_metrics(self, k: int, verbose: bool = False):
+        start_time = datetime.now()
         if verbose == True:
             print(f"Calculating metrics for {k}-mers.", flush=True)
         kmer_set = set()
@@ -286,8 +288,9 @@ class FindOptimalKPipeline:
         score = specificity * efficiency
         if verbose == True:
             print(f"Done calculating metrics for {k}-mers.", flush=True)
+        dt = datetime.now()-start_time
 
-        return k, specificity, efficiency, score, df_mem
+        return k, specificity, efficiency, score, df_mem, dt
 
     def find_optimal_k(self, n_jobs: int = 4, verbose:bool = False):
         print("Finding optimal k.")
@@ -295,6 +298,7 @@ class FindOptimalKPipeline:
         eff_k = {}
         score_k = {}
         mem_k = {}
+        dt_k = {}
         k_to_test = [(k,verbose) for k in range(self.mink, self.maxk + 1, 2)]
         with multiprocessing.get_context("forkserver").Pool(n_jobs) as pool:
             results = pool.starmap(self._calc_metrics, k_to_test, chunksize=1)
@@ -305,6 +309,7 @@ class FindOptimalKPipeline:
                 eff_k[result[0]] = result[2]
                 score_k[result[0]] = result[3]
                 mem_k[result[0]] = result[4]
+                dt_k[result[0]] = result[5]
 
         with open(
             f"{self.project_dir}/output/k_selection_results", mode="w"
@@ -312,7 +317,7 @@ class FindOptimalKPipeline:
             out_file.write("\nHere are the results of optimal k selection:\n")
             for k in spec_k.keys():
                 out_file.write(
-                    f"\nk: {k}, specificity {round(spec_k[k],4)}, efficiency {round(eff_k[k],4)}, score {round(score_k[k], 4)}, data frame memory size {round(mem_k[k],2)} GB."
+                    f"\nk: {k}, specificity {round(spec_k[k],4)}, efficiency {round(eff_k[k],4)}, score {round(score_k[k], 4)}, calculation time {dt_k[k]}, data frame memory size {round(mem_k[k],2)} GB."
                 )
 
             best_k = max(score_k, key=score_k.get)
