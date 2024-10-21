@@ -74,7 +74,6 @@ def _new_project(project_dir: str) -> None:
     os.mkdir(f"{project_dir}/output")
     os.mkdir(f"{project_dir}/temp")
     shutil.copy2("./templates/config.yaml", project_dir)
-    shutil.copy2("./templates/generate_kmers.sh", project_dir)
     print(f"New empty PORT-EK project created in {project_dir}. Please edit config.yaml and generte_kmers.sh files as required and copy input fasta files into {project_dir}/input.")
 
 
