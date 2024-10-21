@@ -463,6 +463,9 @@ class EnrichedKmersPipeline:
                 ]
             )
 
+    def save_counts_for_classifier(self):
+        pass
+
     def save_matrix(self, matrix_type: str, full: bool = False):
         if full == True:
             out_filename = f"{self.project_dir}/output/{matrix_type}_{self.k}mers.csv"
