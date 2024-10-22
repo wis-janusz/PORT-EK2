@@ -8,6 +8,7 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 from Bio import Align, SeqIO
+from scipy import stats
 
 import portek
 
@@ -92,6 +93,85 @@ class EnrichedKmersPipeline:
     def __repr__(self) -> str:
         pass
 
+    def get_basic_kmer_stats(self, save_rare: bool = False, verbose: bool = False):
+
+        kmer_set = set()
+        sample_list = []
+        kmer_set_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
+            f"*_{self.k}mer_set.pkl"
+        )
+        sample_list_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
+            "*sample_list.pkl"
+        )
+
+        for filename in kmer_set_in_path:
+            with open(filename, mode="rb") as in_file:
+                partial_set = pickle.load(in_file)
+            kmer_set.update(partial_set)
+        kmer_set = list(kmer_set)
+
+        for filename in sample_list_in_path:
+            with open(filename, mode="rb") as in_file:
+                partial_list = pickle.load(in_file)
+            group = filename.stem.split("_")[0]
+            partial_list = [f"{group}_{sample_name}" for sample_name in partial_list]
+            sample_list.extend(partial_list)
+
+        all_kmer_matrix = pd.DataFrame(
+            0.0,
+            index=kmer_set,
+            columns=self.freq_cols + self.avg_cols,
+            dtype=np.float64,
+        ).sort_index()
+
+        sample_group_dict = {
+            f"{group}": [
+                sample for sample in sample_list if sample.split("_")[0] == f"{group}"
+            ]
+            for group in self.sample_groups
+        }
+
+        self.kmer_set = kmer_set
+        self.sample_list = sample_list
+        self.sample_group_dict = sample_group_dict
+
+        in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
+            f"{self.k}mer_*_avg_dict.pkl"
+        )
+        for filename in in_path:
+            with open(filename, mode="rb") as in_file:
+                temp_dict = pickle.load(in_file)
+            column_name = "_".join(filename.stem.split("_")[1:-1])
+            all_kmer_matrix[column_name] = temp_dict
+
+        in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
+            f"{self.k}mer_*_freq_dict.pkl"
+        )
+        for filename in in_path:
+            with open(filename, mode="rb") as in_file:
+                temp_dict = pickle.load(in_file)
+            column_name = "_".join(filename.stem.split("_")[1:-1])
+            all_kmer_matrix[column_name] = temp_dict
+
+        all_kmer_matrix = all_kmer_matrix.fillna(0.0)
+        if 0 in all_kmer_matrix.index:
+            all_kmer_matrix = all_kmer_matrix.drop(0)
+
+        all_kmer_matrix.index = all_kmer_matrix.index.map(
+            lambda id: portek.decode_kmer(id, self.k)
+        )
+        common_kmer_matrix = portek.filter_kmers(
+            all_kmer_matrix, freq_cols=self.freq_cols, cons_thr=self.c
+        )
+        rare_kmer_matrix = all_kmer_matrix.loc[
+            all_kmer_matrix.index[~all_kmer_matrix.index.isin(common_kmer_matrix.index)]
+        ]
+
+        self.matrices["common"] = common_kmer_matrix
+
+        if save_rare == True:
+            self.matrices["rare"] = rare_kmer_matrix
+
     def get_kmers(self, save_rare: bool = False, verbose: bool = False):
         kmer_set = set()
         sample_list = []
@@ -155,7 +235,7 @@ class EnrichedKmersPipeline:
                     flush=True,
                 )
                 counter += 1
-
+        all_kmer_matrix = all_kmer_matrix.sort_index()
         all_kmer_matrix.index = all_kmer_matrix.index.map(
             lambda id: portek.decode_kmer(id, self.k)
         )
@@ -187,6 +267,122 @@ class EnrichedKmersPipeline:
         print(
             f"\n{len(common_kmer_matrix)} common k-mers remaining after filtering at a threshold of {self.c}."
         )
+
+    def _calc_pvalue_no_counts(self, kmer, group1, group2, matrix_type):
+        group1_len = len(self.sample_group_dict[group1])
+        group2_len = len(self.sample_group_dict[group2])
+        group1_frac = self.matrices[matrix_type].loc[kmer, f"{group1}_freq"]*group1_len
+        group2_frac = self.matrices[matrix_type].loc[kmer, f"{group2}_freq"]*group2_len
+        cont_table = np.array(
+            [
+                [group1_frac, group2_frac],
+                [group1_len - group1_frac, group2_len - group2_frac],
+            ]
+        )
+        test_result = stats.fisher_exact(cont_table)
+        return test_result.pvalue
+
+    def calc_kmer_stats_no_counts(self, matrix_type: str):
+        print(f"Identyfying enriched {self.k}-mers.")
+        if self.mode == "ava":
+            self.matrices[matrix_type]["seq"] = self.matrices[matrix_type].index
+            err_cols = []
+            p_cols = []
+            for j in range(1, len(self.sample_groups)):
+                for i in range(j):
+                    err_name = f"{self.sample_groups[i]}-{self.sample_groups[j]}_err"
+                    p_name = f"{self.sample_groups[i]}-{self.sample_groups[j]}_p-value"
+                    err_cols.append(err_name)
+                    p_cols.append(p_name)
+                    self.matrices[matrix_type][err_name] = (
+                        self.matrices[matrix_type][f"{self.sample_groups[i]}_avg"]
+                        - self.matrices[matrix_type][f"{self.sample_groups[j]}_avg"]
+                    )
+                    self.matrices[matrix_type][p_name] = self.matrices[matrix_type][
+                        "seq"
+                    ].apply(
+                        self._calc_pvalue_no_counts,
+                        args=(
+                            self.sample_groups[i],
+                            self.sample_groups[j],
+                            matrix_type,
+                        ),
+                    )
+                    with np.errstate(divide="ignore"):
+                        self.matrices[matrix_type][f"-log10_{p_name}"] = -np.log10(
+                            self.matrices[matrix_type][p_name]
+                        )
+            self.matrices[matrix_type]["RMSE"] = np.sqrt(
+                ((self.matrices[matrix_type][err_cols]) ** 2).mean(axis=1)
+            )
+            self.matrices[matrix_type] = self.matrices[matrix_type].sort_values(
+                "RMSE", ascending=False
+            )
+            self.matrices[matrix_type] = self.matrices[matrix_type].drop("seq", axis=1)
+            self.matrices[matrix_type]["group"] = self.matrices[matrix_type].apply(
+                portek.assign_kmer_group_ava,
+                p_cols=p_cols,
+                avg_cols=self.avg_cols,
+                freq_cols=self.freq_cols,
+                axis=1,
+            )
+            self.matrices[matrix_type]["exclusivity"] = self.matrices[
+                matrix_type
+            ].apply(portek.check_exclusivity, avg_cols=self.avg_cols, axis=1)
+
+        elif self.mode == "ovr":
+            self.matrices[matrix_type]["seq"] = self.matrices[matrix_type].index
+            err_cols = []
+            p_cols = []
+            for j in range(len(self.control_groups)):
+                err_name = f"{self.goi}-{self.control_groups[j]}_err"
+                p_name = f"{self.goi}-{self.control_groups[j]}_p-value"
+                err_cols.append(err_name)
+                p_cols.append(p_name)
+                self.matrices[matrix_type][err_name] = (
+                    self.matrices[matrix_type][f"{self.goi}_avg"]
+                    - self.matrices[matrix_type][f"{self.control_groups[j]}_avg"]
+                )
+                self.matrices[matrix_type][p_name] = self.matrices[matrix_type][
+                    "seq"
+                ].apply(
+                    self._calc_pvalue_no_counts,
+                    args=(
+                        self.sample_groups[i],
+                        self.sample_groups[j],
+                        matrix_type,
+                    ),
+                )
+                with np.errstate(divide="ignore"):
+                    self.matrices[matrix_type][f"-log10_{p_name}"] = -np.log10(
+                        self.matrices[matrix_type][p_name]
+                    )
+            self.matrices[matrix_type]["RMSE"] = np.sqrt(
+                ((self.matrices[matrix_type][err_cols]) ** 2).mean(axis=1)
+            )
+            self.matrices[matrix_type] = self.matrices[matrix_type].sort_values(
+                "RMSE", ascending=False
+            )
+            self.matrices[matrix_type] = self.matrices[matrix_type].drop("seq", axis=1)
+            self.matrices[matrix_type]["group"] = self.matrices[matrix_type].apply(
+                portek.assign_kmer_group_ovr,
+                goi=self.goi,
+                p_cols=p_cols,
+                err_cols=err_cols,
+                freq_cols=self.freq_cols,
+                axis=1,
+            )
+            self.matrices[matrix_type]["exclusivity"] = self.matrices[
+                matrix_type
+            ].apply(portek.check_exclusivity, avg_cols=self.avg_cols, axis=1)
+
+        self.enriched_groups = [
+            name.split("_")[0]
+            for name in self.matrices[matrix_type]["group"].value_counts().index
+            if "enriched" in name
+        ]
+        self.err_cols = err_cols
+        self.p_cols = p_cols
 
     def calc_kmer_stats(self, matrix_type: str):
         print(f"Identyfying enriched {self.k}-mers.")
@@ -449,9 +645,11 @@ class EnrichedKmersPipeline:
             self.matrices["enriched"] = pd.concat(
                 [
                     self.matrices["common"].loc[
-                        ((self.matrices["common"]["group"] != "not_significant")
-                        & (self.matrices["common"]["group"] != "group_dependent")
-                        & (self.matrices["common"]["RMSE"] > self.min_rmse))
+                        (
+                            (self.matrices["common"]["group"] != "not_significant")
+                            & (self.matrices["common"]["group"] != "group_dependent")
+                            & (self.matrices["common"]["RMSE"] > self.min_rmse)
+                        )
                         | (self.matrices["common"]["group"] == "conserved")
                     ],
                     self.matrices["rare_similar"].loc[
@@ -459,7 +657,7 @@ class EnrichedKmersPipeline:
                         & (self.matrices["rare_similar"]["group"] != "group_dependent")
                         & (self.matrices["rare_similar"]["RMSE"] > self.min_rmse)
                         | (self.matrices["common"]["group"] == "conserved")
-                    ]                    
+                    ],
                 ]
             )
 
