@@ -3,4 +3,4 @@ classification in one modeule - portek_classify
 add enriched/conserved/variable genome regions plots
 clean up prints and add optional verbosity
 documentation
-computation time for optimal k-selection
+IMPLEMENT REVIEWS
