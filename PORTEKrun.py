@@ -1,6 +1,7 @@
 import argparse
 import os
 import shutil
+import resource
 from datetime import datetime
 
 import portek
@@ -12,9 +13,17 @@ parser.add_argument("tool", help="Name of the PORT-EK function you want to execu
 
 parser.add_argument(
     "project_dir",
-    help="path to the project directory. Must not exist for PORTEKrun.py new, must exist for all other tools",
+    help="Path to the project directory. Must not exist for PORTEKrun.py new, must exist for all other tools",
     type=str,
 )
+
+parser.add_argument(
+    "--skip_kf",
+    help="Skip finding k-mers in input sequences. Use with PORT-EK find_k if you already have k-mer indices",
+    default=False,
+    action="store_true"
+)
+
 parser.add_argument(
     "--min_k",
     help="Minimum k value to test with PORT-EK find_k (default 5)",
@@ -36,7 +45,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--c",
-    help="rarity filter threshold for PORT-EK enriched. Portek will only use k-mers that have frquency of more than c in at least one sample group",
+    help="Rarity filter threshold for PORT-EK enriched. Portek will only use k-mers that have frquency of more than c in at least one sample group",
     type=float
 )
 
@@ -76,7 +85,6 @@ def _new_project(project_dir: str) -> None:
     shutil.copy2("./templates/config.yaml", project_dir)
     print(f"New empty PORT-EK project created in {project_dir}. Please edit config.yaml and generte_kmers.sh files as required and copy input fasta files into {project_dir}/input.")
 
-
 def main():
     args = parser.parse_args()
     if type(args.project_dir) != str:
@@ -87,8 +95,9 @@ def main():
 
     elif args.tool == "find_k":
         start_time = datetime.now()
-        kmer_finder = portek.KmerFinder(args.project_dir, args.min_k, args.max_k)
-        kmer_finder.find_all_kmers(args.n_jobs, args.verbose)
+        if args.skip_kf == False:
+            kmer_finder = portek.KmerFinder(args.project_dir, args.min_k, args.max_k)
+            kmer_finder.find_all_kmers(args.n_jobs, args.verbose)
         optimal_k_finder = portek.FindOptimalKPipeline(args.project_dir, args.min_k, args.max_k)
         optimal_k_finder.find_optimal_k(args.n_jobs, args.verbose)
         end_timeS_ARE_NOT_CANON = datetime.now()
