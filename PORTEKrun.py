@@ -103,10 +103,11 @@ def main():
         if args.rare_m == None:
             enriched_kmers_finder.get_basic_kmer_stats()
             enriched_kmers_finder.calc_kmer_stats_no_counts("common")
-            enriched_kmers_finder.plot_volcanos("common")       
             enriched_kmers_finder.get_enriched_kmers()
+            enriched_kmers_finder.get_counts_for_classifier(verbose=args.verbose)
             enriched_kmers_finder.save_matrix("enriched", full=True)
-            enriched_kmers_finder.get_counts_for_classifier(args.verbose)
+            enriched_kmers_finder.plot_volcanos("common")  
+            enriched_kmers_finder.plot_PCA()
         else:
             enriched_kmers_finder.get_kmers(save_rare=True)
             enriched_kmers_finder.calc_kmer_stats("common")

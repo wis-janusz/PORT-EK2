@@ -88,7 +88,7 @@ class EnrichedKmersPipeline:
             "common": None,
             "rare_similar": None,
             "enriched": None,
-            "counts": None
+            "counts": None,
         }
 
     def __repr__(self) -> str:
@@ -114,7 +114,7 @@ class EnrichedKmersPipeline:
             raise FileNotFoundError(
                 f"No {self.k}-mers found in project directory! Make sure you generate them using generate_kmers.sh."
             )
-        
+
         for filename in sample_list_in_path:
             with open(filename, mode="rb") as in_file:
                 partial_list = pickle.load(in_file)
@@ -258,6 +258,7 @@ class EnrichedKmersPipeline:
             all_kmer_matrix[f"{group}_avg"] = all_kmer_matrix.loc[
                 :, sample_group_dict[group]
             ].mean(axis=1)
+        del bin_kmer_matrix
 
         if self.k * "A" in all_kmer_matrix.index:
             all_kmer_matrix = all_kmer_matrix.drop(self.k * "A")
@@ -265,15 +266,17 @@ class EnrichedKmersPipeline:
         common_kmer_matrix = portek.filter_kmers(
             all_kmer_matrix, freq_cols=self.freq_cols, cons_thr=self.c
         )
-        rare_kmer_matrix = all_kmer_matrix.loc[
-            all_kmer_matrix.index[~all_kmer_matrix.index.isin(common_kmer_matrix.index)]
-        ]
 
         self.matrices["common"] = common_kmer_matrix
 
         if save_rare == True:
+            rare_kmer_matrix = all_kmer_matrix.loc[
+                all_kmer_matrix.index[
+                    ~all_kmer_matrix.index.isin(common_kmer_matrix.index)
+                ]
+            ]
             self.matrices["rare"] = rare_kmer_matrix
-
+            
         print(
             f"{len(common_kmer_matrix)} common k-mers remaining after filtering at a threshold of {self.c}."
         )
@@ -281,8 +284,12 @@ class EnrichedKmersPipeline:
     def _calc_pvalue_no_counts(self, kmer, group1, group2, matrix_type):
         group1_len = len(self.sample_group_dict[group1])
         group2_len = len(self.sample_group_dict[group2])
-        group1_frac = self.matrices[matrix_type].loc[kmer, f"{group1}_freq"]*group1_len
-        group2_frac = self.matrices[matrix_type].loc[kmer, f"{group2}_freq"]*group2_len
+        group1_frac = (
+            self.matrices[matrix_type].loc[kmer, f"{group1}_freq"] * group1_len
+        )
+        group2_frac = (
+            self.matrices[matrix_type].loc[kmer, f"{group2}_freq"] * group2_len
+        )
         cont_table = np.array(
             [
                 [group1_frac, group2_frac],
@@ -630,6 +637,7 @@ class EnrichedKmersPipeline:
             ax.set_title(f"{group1} vs {group2} volcano plot")
             ax.set_xlabel("Average kmer count change")
             ax.set_ylabel("-log10 of p-value")
+            fig.tight_layout()
             sns.scatterplot(
                 data=self.matrices[matrix_type],
                 x=err,
@@ -642,6 +650,7 @@ class EnrichedKmersPipeline:
                 f"{self.project_dir}/output/{err}_{matrix_type}_{self.k}-mers_volcano.svg",
                 dpi=600,
                 format="svg",
+                bbox_inches="tight",
             )
 
     def get_enriched_kmers(self):
@@ -676,9 +685,12 @@ class EnrichedKmersPipeline:
         for group in group_numbers.index:
             print(f"{group_numbers.loc[group]} {group} {self.k}-mers")
 
-
     def get_counts_for_classifier(self, verbose):
-        enriched_kmers = self.matrices["enriched"].loc[self.matrices["enriched"]["group"] != "conserved"].index.map(lambda seq: portek.encode_kmer(seq))
+        enriched_kmers = (
+            self.matrices["enriched"]
+            .loc[self.matrices["enriched"]["group"] != "conserved"]
+            .index.map(lambda seq: portek.encode_kmer(seq))
+        )
         counts_for_classifier = pd.DataFrame(
             0, index=enriched_kmers, columns=self.sample_list, dtype="uint8"
         )
@@ -704,32 +716,54 @@ class EnrichedKmersPipeline:
                     flush=True,
                 )
                 counter += 1
-       
+
         counts_for_classifier.index = counts_for_classifier.index.map(
             lambda id: portek.decode_kmer(id, self.k)
         )
         counts_for_classifier = counts_for_classifier.T
         self.matrices["counts"] = counts_for_classifier
         print(f"\nSaving {self.k}-mer counts for classification.")
-        counts_for_classifier["sample_group"] = counts_for_classifier.index.map(lambda name: name.split("_")[0])
-        counts_for_classifier.to_csv(f"{self.project_dir}/output/{self.k}mer_counts_for_classifier_new.csv", index_label = "sample_name")
-
+        counts_for_classifier["sample_group"] = counts_for_classifier.index.map(
+            lambda name: name.split("_")[0]
+        )
+        counts_for_classifier.to_csv(
+            f"{self.project_dir}/output/{self.k}mer_counts_for_classifier_new.csv",
+            index_label="sample_name",
+        )
 
     def plot_PCA(self):
-        scaler = preprocessing.StandardScaler()
+        print(f"\nPlotting and saving PCA plot of enriched {self.k}-mers.")
         pca = decomposition.PCA(2)
-        X_scaled = scaler.fit_transform(self.matrices["counts"])
-        X_PCA = pca.fit_transform(X_scaled)
+        X_PCA = pca.fit_transform(self.matrices["counts"].drop("sample_group", axis=1))
+        y_names = self.matrices["counts"]["sample_group"]
         fig, ax = plt.subplots()
-
-
+        fig.tight_layout()
+        ax.set_title("PCA of k-mer counts")
+        ax.set_xlabel("Principal component 1")
+        ax.set_ylabel("Principal component 2")
+        sns.scatterplot(x=X_PCA[:, 0], y=X_PCA[:, 1], hue=y_names, s=20, linewidth=0)
+        plt.savefig(
+            f"{self.project_dir}/output/{self.k}_PCA_noscale.svg",
+            dpi=600,
+            format="svg",
+            bbox_inches="tight",
+        )
 
     def save_counts_for_classifier(self):
         print(f"\nSaving {self.k}-mer counts for classification.")
-        counts_for_classifier = self.matrices["enriched"].loc[self.matrices["enriched"]["group"] != "conserved",self.sample_list].T
-        counts_for_classifier["sample_group"] = counts_for_classifier.index.map(lambda name: name.split("_")[0])
-        counts_for_classifier.to_csv(f"{self.project_dir}/output/{self.k}mer_counts_for_classifier.csv", index_label = "sample_name")
-
+        counts_for_classifier = (
+            self.matrices["enriched"]
+            .loc[self.matrices["enriched"]["group"] != "conserved", self.sample_list]
+            .T
+        )
+        counts_for_classifier["sample_group"] = counts_for_classifier.index.map(
+            lambda name: name.split("_")[0]
+        )
+        self.matrices["counts"] = counts_for_classifier
+        counts_for_classifier.to_csv(
+            f"{self.project_dir}/output/{self.k}mer_counts_for_classifier.csv",
+            index_label="sample_name",
+        )
 
     def save_matrix(self, matrix_type: str, full: bool = False):
         print(f"\nSaving {matrix_type} {self.k}-mers matrix.")
