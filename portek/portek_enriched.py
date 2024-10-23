@@ -3,12 +3,12 @@ import pathlib
 import yaml
 import pickle
 import multiprocessing
-import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
 import pandas as pd
-from Bio import Align, SeqIO
+import matplotlib.pyplot as plt
+import seaborn as sns
 from scipy import stats
+from sklearn import preprocessing, decomposition
 
 import portek
 
@@ -88,6 +88,7 @@ class EnrichedKmersPipeline:
             "common": None,
             "rare_similar": None,
             "enriched": None,
+            "counts": None
         }
 
     def __repr__(self) -> str:
@@ -109,7 +110,11 @@ class EnrichedKmersPipeline:
                 partial_set = pickle.load(in_file)
             kmer_set.update(partial_set)
         kmer_set = list(kmer_set)
-
+        if len(kmer_set) == 0:
+            raise FileNotFoundError(
+                f"No {self.k}-mers found in project directory! Make sure you generate them using generate_kmers.sh."
+            )
+        
         for filename in sample_list_in_path:
             with open(filename, mode="rb") as in_file:
                 partial_list = pickle.load(in_file)
@@ -134,6 +139,7 @@ class EnrichedKmersPipeline:
         self.kmer_set = kmer_set
         self.sample_list = sample_list
         self.sample_group_dict = sample_group_dict
+        print(f"\nImported {len(kmer_set)} kmers and {len(sample_list)} samples.")
 
         in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
             f"{self.k}mer_*_avg_dict.pkl"
@@ -171,6 +177,10 @@ class EnrichedKmersPipeline:
 
         if save_rare == True:
             self.matrices["rare"] = rare_kmer_matrix
+
+        print(
+            f"{len(common_kmer_matrix)} common k-mers remaining after filtering at a threshold of {self.c}."
+        )
 
     def get_kmers(self, save_rare: bool = False, verbose: bool = False):
         kmer_set = set()
@@ -265,7 +275,7 @@ class EnrichedKmersPipeline:
             self.matrices["rare"] = rare_kmer_matrix
 
         print(
-            f"\n{len(common_kmer_matrix)} common k-mers remaining after filtering at a threshold of {self.c}."
+            f"{len(common_kmer_matrix)} common k-mers remaining after filtering at a threshold of {self.c}."
         )
 
     def _calc_pvalue_no_counts(self, kmer, group1, group2, matrix_type):
@@ -606,6 +616,7 @@ class EnrichedKmersPipeline:
         self.calc_kmer_stats("rare_similar")
 
     def plot_volcanos(self, matrix_type):
+        print(f"\nPlotting and saving volcano plots of enriched {self.k}-mers.")
         for i in range(len(self.err_cols)):
             err = self.err_cols[i]
             group1 = err.split("_")[0].split("-")[0]
@@ -660,11 +671,68 @@ class EnrichedKmersPipeline:
                     ],
                 ]
             )
+        print("\nPORT-EK has found:")
+        group_numbers = self.matrices["enriched"]["group"].value_counts()
+        for group in group_numbers.index:
+            print(f"{group_numbers.loc[group]} {group} {self.k}-mers")
+
+
+    def get_counts_for_classifier(self, verbose):
+        enriched_kmers = self.matrices["enriched"].loc[self.matrices["enriched"]["group"] != "conserved"].index.map(lambda seq: portek.encode_kmer(seq))
+        counts_for_classifier = pd.DataFrame(
+            0, index=enriched_kmers, columns=self.sample_list, dtype="uint8"
+        )
+        print(f"\nGetting enriched {self.k}-mer counts.")
+
+        if verbose == True:
+            counter = 1
+            tot_files = len(self.sample_list)
+        in_path = pathlib.Path(f"{self.project_dir}/input/{self.k}mer_indices").glob(
+            "*_count.pkl"
+        )
+        for filename in in_path:
+            with open(filename, mode="rb") as in_file:
+                temp_dict = pickle.load(in_file)
+            sample_name = "_".join(filename.stem.split("_")[:-1])
+            count_dict = {f"{sample_name}": temp_dict.values()}
+            temp_df = pd.DataFrame(count_dict, index=temp_dict.keys(), dtype="uint8")
+            counts_for_classifier.update(temp_df)
+            if verbose == True:
+                print(
+                    f"Loaded {self.k}-mers from {counter} of {tot_files} samples.",
+                    end="\r",
+                    flush=True,
+                )
+                counter += 1
+       
+        counts_for_classifier.index = counts_for_classifier.index.map(
+            lambda id: portek.decode_kmer(id, self.k)
+        )
+        counts_for_classifier = counts_for_classifier.T
+        self.matrices["counts"] = counts_for_classifier
+        print(f"\nSaving {self.k}-mer counts for classification.")
+        counts_for_classifier["sample_group"] = counts_for_classifier.index.map(lambda name: name.split("_")[0])
+        counts_for_classifier.to_csv(f"{self.project_dir}/output/{self.k}mer_counts_for_classifier_new.csv", index_label = "sample_name")
+
+
+    def plot_PCA(self):
+        scaler = preprocessing.StandardScaler()
+        pca = decomposition.PCA(2)
+        X_scaled = scaler.fit_transform(self.matrices["counts"])
+        X_PCA = pca.fit_transform(X_scaled)
+        fig, ax = plt.subplots()
+
+
 
     def save_counts_for_classifier(self):
-        pass
+        print(f"\nSaving {self.k}-mer counts for classification.")
+        counts_for_classifier = self.matrices["enriched"].loc[self.matrices["enriched"]["group"] != "conserved",self.sample_list].T
+        counts_for_classifier["sample_group"] = counts_for_classifier.index.map(lambda name: name.split("_")[0])
+        counts_for_classifier.to_csv(f"{self.project_dir}/output/{self.k}mer_counts_for_classifier.csv", index_label = "sample_name")
+
 
     def save_matrix(self, matrix_type: str, full: bool = False):
+        print(f"\nSaving {matrix_type} {self.k}-mers matrix.")
         if full == True:
             out_filename = f"{self.project_dir}/output/{matrix_type}_{self.k}mers.csv"
             self.matrices[matrix_type].to_csv(out_filename, index_label="kmer")

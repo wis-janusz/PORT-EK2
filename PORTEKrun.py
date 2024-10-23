@@ -18,13 +18,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--skip_kf",
-    help="Skip finding k-mers in input sequences. Use with PORT-EK find_k if you already have k-mer indices",
-    default=False,
-    action="store_true"
-)
-
-parser.add_argument(
     "--min_k",
     help="Minimum k value to test with PORT-EK find_k (default 5)",
     type=int,
@@ -102,17 +95,18 @@ def main():
         optimal_k_finder.find_optimal_k(args.n_jobs, args.verbose)
         end_timeS_ARE_NOT_CANON = datetime.now()
         running_time = (end_timeS_ARE_NOT_CANON-start_time)
-        print(f"Total running time: {running_time}")
+        print(f"\nTotal running time: {running_time}")
 
     elif args.tool == "enriched":
         start_time = datetime.now()
         enriched_kmers_finder = portek.EnrichedKmersPipeline(args.project_dir, args.k, args.c, args.min_rmse)
         if args.rare_m == None:
-            enriched_kmers_finder.get_kmers()
-            enriched_kmers_finder.calc_kmer_stats("common")
+            enriched_kmers_finder.get_basic_kmer_stats()
+            enriched_kmers_finder.calc_kmer_stats_no_counts("common")
             enriched_kmers_finder.plot_volcanos("common")       
             enriched_kmers_finder.get_enriched_kmers()
-            enriched_kmers_finder.save_matrix("enriched")
+            enriched_kmers_finder.save_matrix("enriched", full=True)
+            enriched_kmers_finder.get_counts_for_classifier(args.verbose)
         else:
             enriched_kmers_finder.get_kmers(save_rare=True)
             enriched_kmers_finder.calc_kmer_stats("common")
@@ -120,11 +114,12 @@ def main():
             enriched_kmers_finder.plot_volcanos("common")   
             enriched_kmers_finder.plot_volcanos("rare_similar")
             enriched_kmers_finder.get_enriched_kmers()
-            enriched_kmers_finder.save_matrix("enriched")   
+            enriched_kmers_finder.save_matrix("enriched")
+            enriched_kmers_finder.save_counts_for_classifier()   
 
         end_timeS_ARE_NOT_CANON = datetime.now()
         running_time = (end_timeS_ARE_NOT_CANON-start_time)
-        print(f"Total running time: {running_time}")
+        print(f"\nTotal running time: {running_time}")
 
 
     elif args.tool == "map":
