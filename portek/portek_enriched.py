@@ -19,7 +19,7 @@ class EnrichedKmersPipeline:
     """
 
     def __init__(
-        self, project_dir: str, k: int, c: float, min_rmse: float, rare_m: int = 0
+        self, project_dir: str, s: int, k: int, c: float, min_rmse: float
     ) -> None:
         if os.path.isdir(project_dir) == True:
             self.project_dir = project_dir
@@ -30,6 +30,11 @@ class EnrichedKmersPipeline:
             raise TypeError("k must by an integer!")
         else:
             self.k = k
+
+        if type(s) != int or s > k:
+            raise TypeError("s must by an integer not bigger than k!")
+        else:
+            self.s = s
 
         if type(c) != float and type(c) != int:
             raise TypeError("c must by a number between 0.0 and 1.0!")
@@ -83,24 +88,15 @@ class EnrichedKmersPipeline:
         self.enriched_groups = None
         self.err_cols = None
         self.p_cols = None
-        self.matrices = {
-            "rare": None,
-            "common": None,
-            "rare_similar": None,
-            "enriched": None,
-            "counts": None,
-        }
-
-    def __repr__(self) -> str:
-        pass
+        self.matrices = {}
 
     def get_basic_kmer_stats(self, save_rare: bool = False, verbose: bool = False):
 
         kmer_set = set()
         sample_list = []
-        kmer_set_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
-            f"*_{self.k}mer_set.pkl"
-        )
+        kmer_set_in_path = pathlib.Path(
+            f"{self.project_dir}/input/{self.s}_step/"
+        ).glob(f"*_{self.k}mer_set.pkl")
         sample_list_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
             "*sample_list.pkl"
         )
@@ -112,7 +108,7 @@ class EnrichedKmersPipeline:
         kmer_set = list(kmer_set)
         if len(kmer_set) == 0:
             raise FileNotFoundError(
-                f"No {self.k}-mers found in project directory! Make sure you generate them using generate_kmers.sh."
+                f"No {self.k}-mers with step {self.s} found in project directory! Make sure you generate them using PORT-EK find_k."
             )
 
         for filename in sample_list_in_path:
@@ -141,7 +137,7 @@ class EnrichedKmersPipeline:
         self.sample_group_dict = sample_group_dict
         print(f"\nImported {len(kmer_set)} kmers and {len(sample_list)} samples.")
 
-        in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
+        in_path = pathlib.Path(f"{self.project_dir}/input/{self.s}_step/").glob(
             f"{self.k}mer_*_avg_dict.pkl"
         )
         for filename in in_path:
@@ -150,7 +146,7 @@ class EnrichedKmersPipeline:
             column_name = "_".join(filename.stem.split("_")[1:-1])
             all_kmer_matrix[column_name] = temp_dict
 
-        in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
+        in_path = pathlib.Path(f"{self.project_dir}/input/{self.s}_step/").glob(
             f"{self.k}mer_*_freq_dict.pkl"
         )
         for filename in in_path:
@@ -182,6 +178,7 @@ class EnrichedKmersPipeline:
             f"{len(common_kmer_matrix)} common k-mers remaining after filtering at a threshold of {self.c}."
         )
 
+    # deprecated
     def get_kmers(self, save_rare: bool = False, verbose: bool = False):
         kmer_set = set()
         sample_list = []
@@ -276,7 +273,7 @@ class EnrichedKmersPipeline:
                 ]
             ]
             self.matrices["rare"] = rare_kmer_matrix
-            
+
         print(
             f"{len(common_kmer_matrix)} common k-mers remaining after filtering at a threshold of {self.c}."
         )
@@ -365,8 +362,8 @@ class EnrichedKmersPipeline:
                 ].apply(
                     self._calc_pvalue_no_counts,
                     args=(
-                        self.sample_groups[i],
-                        self.sample_groups[j],
+                        self.goi,
+                        self.control_groups[j],
                         matrix_type,
                     ),
                 )
@@ -401,6 +398,7 @@ class EnrichedKmersPipeline:
         self.err_cols = err_cols
         self.p_cols = p_cols
 
+    # deprecated
     def calc_kmer_stats(self, matrix_type: str):
         print(f"Identyfying enriched {self.k}-mers.")
         if self.mode == "ava":
@@ -620,10 +618,11 @@ class EnrichedKmersPipeline:
             )
 
         self.matrices["rare_similar"] = self.matrices["rare"].loc[kmers_to_reexamine]
-        self.calc_kmer_stats("rare_similar")
+        # self.calc_kmer_stats("rare_similar")
+        self.calc_kmer_stats_no_counts("rare_similar")
 
     def plot_volcanos(self, matrix_type):
-        print(f"\nPlotting and saving volcano plots of enriched {self.k}-mers.")
+        print(f"\nPlotting and saving volcano plots of enriched {self.k}-mers with step {self.s}.")
         for i in range(len(self.err_cols)):
             err = self.err_cols[i]
             group1 = err.split("_")[0].split("-")[0]
@@ -647,14 +646,14 @@ class EnrichedKmersPipeline:
                 hue="group",
             )
             plt.savefig(
-                f"{self.project_dir}/output/{err}_{matrix_type}_{self.k}-mers_volcano.svg",
+                f"{self.project_dir}/output/{err}_{matrix_type}_{self.s}step_{self.k}mers_volcano.svg",
                 dpi=600,
                 format="svg",
                 bbox_inches="tight",
             )
 
     def get_enriched_kmers(self):
-        if self.matrices["rare_similar"] == None:
+        if "rare_similar" not in self.matrices.keys():
             self.matrices["enriched"] = self.matrices["common"].loc[
                 (self.matrices["common"]["group"] != "not_significant")
                 & (self.matrices["common"]["group"] != "group_dependent")
@@ -699,9 +698,9 @@ class EnrichedKmersPipeline:
         if verbose == True:
             counter = 1
             tot_files = len(self.sample_list)
-        in_path = pathlib.Path(f"{self.project_dir}/input/{self.k}mer_indices").glob(
-            "*_count.pkl"
-        )
+        in_path = pathlib.Path(
+            f"{self.project_dir}/input/{self.s}_step/{self.k}mer_indices"
+        ).glob("*_count.pkl")
         for filename in in_path:
             with open(filename, mode="rb") as in_file:
                 temp_dict = pickle.load(in_file)
@@ -727,12 +726,14 @@ class EnrichedKmersPipeline:
             lambda name: name.split("_")[0]
         )
         counts_for_classifier.to_csv(
-            f"{self.project_dir}/output/{self.k}mer_counts_for_classifier_new.csv",
+            f"{self.project_dir}/output/{self.s}step_{self.k}mer_counts_for_classifier.csv",
             index_label="sample_name",
         )
 
     def plot_PCA(self):
-        print(f"\nPlotting and saving PCA plot of enriched {self.k}-mers.")
+        print(
+            f"\nPlotting and saving PCA plot of enriched {self.k}-mers with step {self.s}."
+        )
         pca = decomposition.PCA(2)
         X_PCA = pca.fit_transform(self.matrices["counts"].drop("sample_group", axis=1))
         y_names = self.matrices["counts"]["sample_group"]
@@ -743,7 +744,7 @@ class EnrichedKmersPipeline:
         ax.set_ylabel("Principal component 2")
         sns.scatterplot(x=X_PCA[:, 0], y=X_PCA[:, 1], hue=y_names, s=20, linewidth=0)
         plt.savefig(
-            f"{self.project_dir}/output/{self.k}_PCA_noscale.svg",
+            f"{self.project_dir}/output/{self.s}step_{self.k}mer_PCA.svg",
             dpi=600,
             format="svg",
             bbox_inches="tight",
@@ -761,19 +762,19 @@ class EnrichedKmersPipeline:
         )
         self.matrices["counts"] = counts_for_classifier
         counts_for_classifier.to_csv(
-            f"{self.project_dir}/output/{self.k}mer_counts_for_classifier.csv",
+            f"{self.project_dir}/output/{self.s}step_{self.k}mer_counts_for_classifier.csv",
             index_label="sample_name",
         )
 
     def save_matrix(self, matrix_type: str, full: bool = False):
         print(f"\nSaving {matrix_type} {self.k}-mers matrix.")
         if full == True:
-            out_filename = f"{self.project_dir}/output/{matrix_type}_{self.k}mers.csv"
+            out_filename = (
+                f"{self.project_dir}/output/{matrix_type}_{self.s}step_{self.k}mers.csv"
+            )
             self.matrices[matrix_type].to_csv(out_filename, index_label="kmer")
         else:
-            out_filename = (
-                f"{self.project_dir}/output/{matrix_type}_{self.k}mers_stats.csv"
-            )
+            out_filename = f"{self.project_dir}/output/{matrix_type}_{self.s}step_{self.k}mers_stats.csv"
             self.matrices[matrix_type].drop(self.sample_list, axis=1).to_csv(
                 out_filename, index_label="kmer"
             )
