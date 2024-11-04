@@ -332,8 +332,8 @@ class FindOptimalKPipeline:
 
         all_kmer_stat_matrix = all_kmer_stat_matrix.fillna(0.0)
 
-        for c_col, freq_col, avg_col, group in zip(
-            self.c_cols, self.freq_cols, self.avg_cols, self.sample_groups
+        for c_col, freq_col, group in zip(
+            self.c_cols, self.freq_cols, self.sample_groups
         ):
             all_kmer_stat_matrix[c_col] = round(
                 all_kmer_stat_matrix[freq_col] * group_len_dict[group], 0
