@@ -12,7 +12,6 @@ from sklearn import preprocessing, decomposition
 
 import portek
 
-
 class EnrichedKmersPipeline:
     """
     EnrichedKmersPipeline:
@@ -160,6 +159,8 @@ class EnrichedKmersPipeline:
             column_name = "_".join(filename.stem.split("_")[1:-1])
             all_kmer_matrix[column_name] = temp_dict
 
+        all_kmer_matrix = all_kmer_matrix.fillna(0.0)
+        
         for c_col, freq_col, group in zip(
             self.c_cols, self.freq_cols, self.sample_groups
         ):
