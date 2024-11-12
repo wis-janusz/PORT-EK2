@@ -12,6 +12,7 @@ from .portek_utils import plot_segments
 from .portek_utils import plot_kmers_by_genome
 from .portek_utils import assign_gene_from_interval, assign_gene_from_position
 from .portek_utils import make_ordinal
+from .portek_utils import cluster_kmer_counts
 
 from .portek_findk import KmerFinder
 from .portek_findk import FindOptimalKPipeline

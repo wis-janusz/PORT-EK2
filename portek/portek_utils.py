@@ -1,15 +1,13 @@
-import os
-import pathlib
-import pickle
 import numpy as np
 import pandas as pd
 import networkx as nx
 import regex
-import yaml
 from matplotlib import pyplot, collections, colormaps, patches, colors
 from datetime import datetime
 from scipy import stats
-from Bio import Align
+from scipy.spatial import distance
+from scipy.cluster import hierarchy
+
 
 
 def encode_kmer(kmer_seq: str) -> int:
@@ -157,6 +155,13 @@ def map_kmers_find_mutations(kmer, ref_seq_str, pos_matrix, n=2, l=1000, find_wt
         alignment = None
         mutations = {"id": [], "ref_nt": [], "pos": [], "mut_nt": [], "kmer": []}
     return alignment, mutations
+
+
+def cluster_kmer_counts(matrix):
+    distances = distance.pdist(matrix)
+    linkage = hierarchy.linkage(distances)
+    clustering = hierarchy.fcluster(linkage, 0, criterion="distance")
+    matrix["cluster"] = clustering
 
 
 def assemble_kmers(
