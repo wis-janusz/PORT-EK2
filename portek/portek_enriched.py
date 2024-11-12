@@ -12,6 +12,7 @@ from sklearn import preprocessing, decomposition
 
 import portek
 
+
 class EnrichedKmersPipeline:
     """
     EnrichedKmersPipeline:
@@ -90,7 +91,9 @@ class EnrichedKmersPipeline:
         self.p_cols = None
         self.matrices = {}
 
-    def get_basic_kmer_stats(self, save_rare: bool = False, verbose: bool = False):
+    def get_basic_kmer_stats(
+        self, save_rare: bool = False, verbose: bool = False
+    ):
 
         kmer_set = set()
         sample_list = []
@@ -160,7 +163,7 @@ class EnrichedKmersPipeline:
             all_kmer_matrix[column_name] = temp_dict
 
         all_kmer_matrix = all_kmer_matrix.fillna(0.0)
-        
+
         for c_col, freq_col, group in zip(
             self.c_cols, self.freq_cols, self.sample_groups
         ):
@@ -183,15 +186,17 @@ class EnrichedKmersPipeline:
         min_H = -(min_F * np.log2(min_F) + (1 - min_F) * np.log2(1 - min_F))
         common_kmer_matrix = all_kmer_matrix.loc[all_kmer_matrix["H"] >= min_H]
 
-        rare_kmer_matrix = all_kmer_matrix.loc[
-            all_kmer_matrix.index[~all_kmer_matrix.index.isin(common_kmer_matrix.index)]
-        ]
         self.matrices["common"] = common_kmer_matrix
         if save_rare == True:
+            rare_kmer_matrix = all_kmer_matrix.loc[
+                all_kmer_matrix.index[
+                    ~all_kmer_matrix.index.isin(common_kmer_matrix.index)
+                ]
+            ]
             self.matrices["rare"] = rare_kmer_matrix
 
         print(
-            f"{len(common_kmer_matrix)} common k-mers remaining after filtering at a threshold of {self.c}."
+            f"{len(common_kmer_matrix)} k-mers pass entropy filter at H min of {min_H}"
         )
 
     # deprecated
@@ -415,7 +420,7 @@ class EnrichedKmersPipeline:
         self.err_cols = err_cols
         self.p_cols = p_cols
 
-    def calc_kmer_stats(self, matrix_type: str, verbose: bool = False):
+    def calc_kmer_stats(self, matrix_type: str, final: bool, verbose: bool = False):
         print(f"\nGetting {matrix_type} {self.k}-mer counts.")
         count_df = pd.DataFrame(0, index=self.matrices[matrix_type].index, columns=self.sample_list, dtype="uint8")
         self.matrices[matrix_type] = pd.concat([count_df, self.matrices[matrix_type]], axis=1)
@@ -439,8 +444,8 @@ class EnrichedKmersPipeline:
                     flush=True,
                 )
                 counter += 1
-
-        print(f"\nIdentyfying enriched {self.k}-mers.")
+        cos_distances = []
+        print(f"\nIdentifying enriched {self.k}-mers.")
         if self.mode == "ava":
             err_cols = []
             p_cols = []
@@ -450,9 +455,17 @@ class EnrichedKmersPipeline:
                     p_name = f"{self.sample_groups[i]}-{self.sample_groups[j]}_p-value"
                     err_cols.append(err_name)
                     p_cols.append(p_name)
-                    self.matrices[matrix_type][err_name] = (
-                        self.matrices[matrix_type][f"{self.sample_groups[i]}_avg"]
-                        - self.matrices[matrix_type][f"{self.sample_groups[j]}_avg"]
+                    avg_counts_i = self.matrices[matrix_type][
+                        f"{self.sample_groups[i]}_avg"
+                    ]
+                    avg_counts_j = self.matrices[matrix_type][
+                        f"{self.sample_groups[j]}_avg"
+                    ]
+                    self.matrices[matrix_type][err_name] = avg_counts_i - avg_counts_j
+                    cos_distances.append(
+                        1
+                        - np.dot(avg_counts_i, avg_counts_j)
+                        / (np.linalg.norm(avg_counts_i) * np.linalg.norm(avg_counts_j))
                     )
                     self.matrices[matrix_type][p_name] = self.matrices[
                         matrix_type
@@ -494,9 +507,15 @@ class EnrichedKmersPipeline:
                 p_name = f"{self.goi}-{self.control_groups[j]}_p-value"
                 err_cols.append(err_name)
                 p_cols.append(p_name)
-                self.matrices[matrix_type][err_name] = (
-                    self.matrices[matrix_type][f"{self.goi}_avg"]
-                    - self.matrices[matrix_type][f"{self.control_groups[j]}_avg"]
+                avg_counts_goi = self.matrices[matrix_type][f"{self.goi}_avg"]
+                avg_counts_j = self.matrices[matrix_type][
+                    f"{self.sample_groups[j]}_avg"
+                ]
+                self.matrices[matrix_type][err_name] = avg_counts_goi - avg_counts_j
+                cos_distances.append(
+                    1
+                    - np.dot(avg_counts_goi, avg_counts_j)
+                    / (np.linalg.norm(avg_counts_goi) * np.linalg.norm(avg_counts_j))
                 )
                 self.matrices[matrix_type][p_name] = self.matrices[
                     matrix_type
@@ -529,6 +548,7 @@ class EnrichedKmersPipeline:
                 matrix_type
             ].apply(portek.check_exclusivity, avg_cols=self.avg_cols, axis=1)
 
+        avg_cos_dist = np.mean(cos_distances)
         self.enriched_groups = [
             name.split("_")[0]
             for name in self.matrices[matrix_type]["group"].value_counts().index
@@ -536,6 +556,8 @@ class EnrichedKmersPipeline:
         ]
         self.err_cols = err_cols
         self.p_cols = p_cols
+
+        return avg_cos_dist
 
     def _load_rare_graphs(self, m):
         graph_in_path = pathlib.Path(f"{self.project_dir}/temp/").glob(
@@ -564,7 +586,7 @@ class EnrichedKmersPipeline:
             ) as out_file:
                 pickle.dump(graph, out_file)
 
-    def reexamine_rare(self, m, n_jobs, verbose:bool=False):
+    def reexamine_rare(self, m, n_jobs, verbose: bool = False):
         if type(m) != int or m > self.k or m < 1:
             raise ValueError(
                 "Allowed number of mismatches rare_m must be between 1 and k!"

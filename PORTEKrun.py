@@ -114,8 +114,7 @@ def main():
         enriched_kmers_finder = portek.EnrichedKmersPipeline(args.project_dir, args.s, args.k, args.c, args.min_rmse)
         if args.rare_m == None:
             enriched_kmers_finder.get_basic_kmer_stats()
-            enriched_kmers_finder.calc_kmer_stats("common", verbose=args.verbose)
-            enriched_kmers_finder.save_matrix("common")
+            enriched_kmers_finder.calc_kmer_stats("common", final=False, verbose=args.verbose)
             enriched_kmers_finder.get_enriched_kmers()
             enriched_kmers_finder.save_counts_for_classifier()
             enriched_kmers_finder.save_matrix("enriched")

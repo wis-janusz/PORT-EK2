@@ -80,7 +80,8 @@ class KmerFinder:
             for seq in seq_list:
 
                 if header_format == "gisaid":
-                    seq.id = seq.id.split("|")[1]
+                    if len(seq.id.split("|"))>1:
+                        seq.id = seq.id.split("|")[1]
                 elif header_format == "ncbi":
                     seq.id = seq.id.split("|")[0][:-1]
 
@@ -186,8 +187,8 @@ class KmerFinder:
         k_to_test = [k for k in range(self.mink, self.maxk + 1, 2)]
 
         find_kmers_pool_input = []
-        for s in self.steps:
-            for k in k_to_test:
+        for k in k_to_test:
+            for s in [1,5]:
                 indices_path = f"{self.project_dir}/input/{s}_step/{k}mer_indices/"
                 if os.path.exists(indices_path) == False:
                     os.makedirs(indices_path)
@@ -200,7 +201,7 @@ class KmerFinder:
 
         print("Done finding all k-mers!")
 
-        time_dict = {sk:0 for sk in itertools.product(*[self.steps, k_to_test])}
+        time_dict = {sk:0 for sk in itertools.product(*[[1,5], k_to_test])}
         for time in times:
             time_dict[(time[0], time[1])] += time[2]
         return time_dict
@@ -356,42 +357,68 @@ class FindOptimalKPipeline:
         min_F = (min(group_len_dict.values()) / 2) / tot_samples
         min_H = -(min_F * np.log2(min_F) + (1 - min_F) * np.log2(1 - min_F))
 
+        tot_kmer = len(all_kmer_stat_matrix)
         all_kmer_stat_matrix = all_kmer_stat_matrix.loc[
             all_kmer_stat_matrix["H"] >= min_H
         ]
         sig_kmer = len(all_kmer_stat_matrix)
 
-        
+        all_kmer_stat_matrix["unique"] = 0
+        for kmer in all_kmer_stat_matrix.index:
+            if all([all_kmer_stat_matrix.loc[kmer, avg_col]-all_kmer_stat_matrix.loc[kmer, freq_col] == 0 for avg_col, freq_col in zip(self.avg_cols, self.freq_cols)]):
+                all_kmer_stat_matrix.loc[kmer,"unique"] = 1
+        cos_distances = []
         err_cols = []
         if self.mode == "ovr":
             for j in range(len(self.control_groups)):
                 err_name = f"{self.goi}-{self.control_groups[j]}_err"
                 err_cols.append(err_name)
-
-                all_kmer_stat_matrix[err_name] = (
-                    all_kmer_stat_matrix[f"{self.goi}_avg"]
-                    - all_kmer_stat_matrix[f"{self.control_groups[j]}_avg"]
+                avg_counts_goi = all_kmer_stat_matrix[
+                    f"{self.goi}_avg"
+                ]
+                avg_counts_j = all_kmer_stat_matrix[
+                    f"{self.sample_groups[j]}_avg"
+                ]
+                all_kmer_stat_matrix[err_name] = avg_counts_goi - avg_counts_j
+                cos_distances.append(
+                    1
+                    - np.dot(avg_counts_goi, avg_counts_j)
+                    / (np.linalg.norm(avg_counts_goi) * np.linalg.norm(avg_counts_j))
                 )
         elif self.mode == "ava":
             for j in range(1, len(self.sample_groups)):
                 for i in range(j):
                     err_name = f"{self.sample_groups[i]}-{self.sample_groups[j]}_err"
                     err_cols.append(err_name)
-                    all_kmer_stat_matrix[err_name] = (
-                        all_kmer_stat_matrix[f"{self.sample_groups[i]}_avg"]
-                        - all_kmer_stat_matrix[f"{self.sample_groups[j]}_avg"]
+                    avg_counts_i = all_kmer_stat_matrix[
+                        f"{self.sample_groups[i]}_avg"
+                    ]
+                    avg_counts_j = all_kmer_stat_matrix[
+                        f"{self.sample_groups[j]}_avg"
+                    ]
+                    all_kmer_stat_matrix[err_name] = avg_counts_i - avg_counts_j
+                    cos_distances.append(
+                        1
+                        - np.dot(avg_counts_i, avg_counts_j)
+                        / (np.linalg.norm(avg_counts_i) * np.linalg.norm(avg_counts_j))
                     )
 
-        max_avg_count = all_kmer_stat_matrix[self.avg_cols].max(axis=None)
-        all_kmer_stat_matrix["RMSE"] = np.sqrt(
-            ((all_kmer_stat_matrix[err_cols]) ** 2).mean(axis=1)
-        )/max_avg_count
+        # max_avg_count = all_kmer_stat_matrix[self.avg_cols].max(axis=None)
+        # avg_distance = 0
+        # for col in err_cols:
+        #     err_norm = all_kmer_stat_matrix[col]/max_avg_count
+        #     avg_distance += np.sqrt((err_norm**2).sum())
+
+        # avg_distance = avg_distance
+
+        # all_kmer_stat_matrix["RMSE"] = np.sqrt(
+        #     ((all_kmer_stat_matrix[err_cols]) ** 2).mean(axis=1)
+        # )/max_avg_count
         
         dt = process_time() - start_time
-        mem = round(all_kmer_stat_matrix.memory_usage(index=True, deep=True).sum()/2**20, 3)
-        spec = np.mean(all_kmer_stat_matrix["RMSE"])
-        
-
+        mem = sig_kmer/tot_kmer
+        # mem = round(all_kmer_stat_matrix.memory_usage(index=True, deep=True).sum()/2**20, 3)
+        spec = np.mean(cos_distances)
 
         # fig, ax = plt.subplots()
         # fig.tight_layout()
@@ -414,6 +441,7 @@ class FindOptimalKPipeline:
         # all_kmer_stat_matrix.sort_values("RMSE", ascending=False).to_csv(
         #     f"{self.project_dir}/temp/{s}step_{k}mer_matrix.csv"
         # )
+
         if verbose == True:
             print(f"Done calculating metrics for {k}-mers with step {s}.", flush=True)
         
@@ -422,23 +450,22 @@ class FindOptimalKPipeline:
 
     def find_optimal_k(self, n_jobs: int = 4, verbose: bool = False):
         print("Finding optimal s and k.")
+        k_to_test = [k for k in range(self.mink, self.maxk + 1, 2)]
+        calc_kmers_pool_input = []
+        for k in k_to_test:
+            for s in [1,5]:
+                calc_kmers_pool_input.append([s,k,verbose])
+
+        with multiprocessing.get_context("forkserver").Pool(n_jobs) as pool:
+            results = pool.starmap(self._calc_metrics, calc_kmers_pool_input, chunksize=1)
+
         result_df = pd.DataFrame(
             0,
-            index=pd.MultiIndex.from_product(
-                [self.steps, [k for k in range(self.mink, self.maxk + 1, 2)]]
-            ),
+            index=pd.MultiIndex.from_tuples([sk[:-1] for sk in calc_kmers_pool_input]),
             columns=["spec", "mem", "dt", "spec_rank", "mem_rank", "dt_rank", "score"],
             dtype=float,
         )
         result_df["dt"] = result_df["dt"].astype("object")
-
-        k_to_test = []
-        for s in self.steps:
-            k_to_test.extend(
-                (s, k, verbose) for k in range(self.mink, self.maxk + 1, 2)
-            )
-        with multiprocessing.get_context("forkserver").Pool(n_jobs) as pool:
-            results = pool.starmap(self._calc_metrics, k_to_test, chunksize=1)
 
         for result in results:
             if result != None:
@@ -458,10 +485,10 @@ class FindOptimalKPipeline:
         result_df["dt"] = result_df["dt"].round(3)
 
         result_df["spec_rank"] = result_df["spec"].rank(ascending=False)
-        result_df["mem_rank"] = result_df["mem"].rank()
+        result_df["mem_rank"] = result_df["mem"].rank(ascending=False)
         result_df["dt_rank"] = result_df["dt"].rank()
         result_df["score"] = len(result_df)+1-result_df["spec_rank"]-result_df["mem_rank"]-result_df["dt_rank"]
-        result_df = result_df.sort_values("spec_rank")
+        result_df = result_df.sort_values(["spec_rank", "mem_rank", "dt_rank"])
 
         with open(
             f"{self.project_dir}/output/k_selection_results.txt", mode="w"
@@ -469,7 +496,7 @@ class FindOptimalKPipeline:
             out_file.write(f"\nHere are the results of optimal step and k selection out of {len(result_df)} combinations:\n")
             for s, k in result_df.index:
                 out_file.write(
-                    f"\nstep: {s}, k: {k}, mean normalized RMSE: {result_df.loc[(s,k),'spec']} ({result_df.loc[(s,k),'spec_rank']}), data frame memory usage: {result_df.loc[(s,k),'mem']} MB ({result_df.loc[(s,k),'mem_rank']}), CPU time {result_df.loc[(s,k),'dt']} s ({result_df.loc[(s,k),'dt_rank']}), score {result_df.loc[(s,k),'score']}."
+                    f"\nstep: {s}, k: {k}, average cosine distance: {result_df.loc[(s,k),'spec']} ({result_df.loc[(s,k),'spec_rank']}), kmers passing entropy filter: {result_df.loc[(s,k),'mem']*100}% ({result_df.loc[(s,k),'mem_rank']}), CPU time {result_df.loc[(s,k),'dt']} s ({result_df.loc[(s,k),'dt_rank']}), score {result_df.loc[(s,k),'score']}."
                 )
             best_sk = result_df.idxmax()["spec"]
             best_compromise_sk = result_df.idxmax()["score"]
