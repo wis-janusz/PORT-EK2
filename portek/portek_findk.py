@@ -7,10 +7,12 @@ import multiprocessing
 import warnings
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+
+# import matplotlib.pyplot as plt
+# import seaborn as sns
 from collections import defaultdict
-from sklearn.preprocessing import MinMaxScaler
+
+# from sklearn.preprocessing import MinMaxScaler
 from time import process_time
 from Bio import SeqIO
 
@@ -22,7 +24,7 @@ class KmerFinder:
     KmerFinder:
     """
 
-    def __init__(self, project_dir: str, mink: int, maxk: int, steps: list) -> None:
+    def __init__(self, project_dir: str, mink: int, maxk: int) -> None:
         if os.path.isdir(project_dir) == True:
             self.project_dir = project_dir
         else:
@@ -41,15 +43,7 @@ class KmerFinder:
             )
         else:
             self.maxk = maxk
-        if type(steps) != list:
-            raise TypeError("--steps must be a list of positive integers!")
-        elif any(s < 1 for s in steps):
-            raise ValueError("--steps must be a list of positive integers!")
-        else:
-            self.steps = steps
 
-        if any([step > self.mink for step in self.steps]):
-            warnings.warn("One of the step values is larger than minimal k value. K-mers shorter than step value will not give full coverage of sequences!")
         try:
             with open(f"{project_dir}/config.yaml", "r") as config_file:
                 config = yaml.safe_load(config_file)
@@ -80,7 +74,7 @@ class KmerFinder:
             for seq in seq_list:
 
                 if header_format == "gisaid":
-                    if len(seq.id.split("|"))>1:
+                    if len(seq.id.split("|")) > 1:
                         seq.id = seq.id.split("|")[1]
                 elif header_format == "ncbi":
                     seq.id = seq.id.split("|")[0][:-1]
@@ -93,22 +87,21 @@ class KmerFinder:
 
             sample_list = [seq.id for seq in seq_list]
             self.seq_lists.append(seq_list)
+            samplelist_path = f"{self.project_dir}/input/indices/"
+            if os.path.exists(samplelist_path) == False:
+                os.makedirs(samplelist_path)
             with open(
-                f"{self.project_dir}/input/{group}_sample_list.pkl", mode="wb"
+                f"{samplelist_path}/{group}_sample_list.pkl", mode="wb"
             ) as out_file:
                 pickle.dump(sample_list, out_file, protocol=pickle.HIGHEST_PROTOCOL)
 
     def _unknown_nuc(self):
         return "X"
 
-    def _find_kmers(
-        self, k: int, group: str, seq_list: int, s: int = 1, verbose: bool = False
-    ):
+    def _find_kmers(self, k: int, group: str, seq_list: int, verbose: bool = False):
         start_time = process_time()
         if verbose == True:
-            print(
-                f"Finding all {k}-mers in {group} sequences with step {s}.", flush=True
-            )
+            print(f"Finding all {k}-mers in {group} sequences.", flush=True)
         encoding = defaultdict(self._unknown_nuc)
         encoding["A"] = "00"
         encoding["C"] = "01"
@@ -125,7 +118,7 @@ class KmerFinder:
             seq = [encoding[nuc] for nuc in seq.seq]
             kmers_dict = {}
             kmers_pos_dict = {}
-            for i in range(0, len(seq) - k + 1, s):
+            for i in range(0, len(seq) - k + 1):
                 kmer = seq[i : i + k]
                 if "X" not in kmer:
                     kmer = int("".join(kmer), base=2)
@@ -146,38 +139,38 @@ class KmerFinder:
                             avg_dict[kmer] = 1 / group_size
 
             with open(
-                f"{self.project_dir}/input/{s}_step/{k}mer_indices/{group}_{seqid}_count.pkl",
+                f"{self.project_dir}/input/indices/{k}mers/{group}_{seqid}_count.pkl",
                 mode="wb",
             ) as out_file:
                 pickle.dump(kmers_dict, out_file, protocol=pickle.HIGHEST_PROTOCOL)
-            # with open(
-            #     f"{self.project_dir}/input/{s}_step/{k}mer_indices/{group}_{seqid}_pos.pkl",
-            #     mode="wb",
-            # ) as out_file:
-            #     pickle.dump(kmers_pos_dict, out_file, protocol=pickle.HIGHEST_PROTOCOL)
+            with open(
+                f"{self.project_dir}/input/indices/{k}mers/{group}_{seqid}_pos.pkl",
+                mode="wb",
+            ) as out_file:
+                pickle.dump(kmers_pos_dict, out_file, protocol=pickle.HIGHEST_PROTOCOL)
 
         with open(
-            f"{self.project_dir}/input/{s}_step/{group}_{k}mer_set.pkl", mode="wb"
+            f"{self.project_dir}/input/indices/{k}mer_{group}_set.pkl", mode="wb"
         ) as out_file:
             pickle.dump(kmer_set, out_file, protocol=pickle.HIGHEST_PROTOCOL)
 
         with open(
-            f"{self.project_dir}/input/{s}_step/{k}mer_{group}_freq_dict.pkl", mode="wb"
+            f"{self.project_dir}/input/indices/{k}mer_{group}_freq_dict.pkl", mode="wb"
         ) as out_file:
             pickle.dump(freq_dict, out_file, protocol=pickle.HIGHEST_PROTOCOL)
 
         with open(
-            f"{self.project_dir}/input/{s}_step/{k}mer_{group}_avg_dict.pkl", mode="wb"
+            f"{self.project_dir}/input/indices/{k}mer_{group}_avg_dict.pkl", mode="wb"
         ) as out_file:
             pickle.dump(avg_dict, out_file, protocol=pickle.HIGHEST_PROTOCOL)
 
         if verbose == True:
             print(
-                f"Done finding all {k}-mers in {group} sequences with step {s}.",
+                f"Done finding all {k}-mers in {group} sequences.",
                 flush=True,
             )
 
-        return (s, k, process_time()-start_time)
+        return (k, process_time() - start_time)
 
     def find_all_kmers(self, n_jobs: int = 4, verbose: bool = False):
         print(
@@ -185,25 +178,25 @@ class KmerFinder:
             flush=True,
         )
         k_to_test = [k for k in range(self.mink, self.maxk + 1, 2)]
+        k_to_test.reverse()
 
         find_kmers_pool_input = []
         for k in k_to_test:
-            for s in [1,5]:
-                indices_path = f"{self.project_dir}/input/{s}_step/{k}mer_indices/"
-                if os.path.exists(indices_path) == False:
-                    os.makedirs(indices_path)
-                groups = zip(self.sample_groups, self.seq_lists)
-                for group, seq_list in groups:
-                    find_kmers_pool_input.append([k, group, seq_list, s, verbose])
+            indices_path = f"{self.project_dir}/input/indices/{k}mers/"
+            if os.path.exists(indices_path) == False:
+                os.makedirs(indices_path)
+            groups = zip(self.sample_groups, self.seq_lists)
+            for group, seq_list in groups:
+                find_kmers_pool_input.append([k, group, seq_list, verbose])
 
         with multiprocessing.get_context("forkserver").Pool(n_jobs) as pool:
             times = pool.starmap(self._find_kmers, find_kmers_pool_input, chunksize=1)
 
         print("Done finding all k-mers!")
 
-        time_dict = {sk:0 for sk in itertools.product(*[[1,5], k_to_test])}
+        time_dict = {k: 0 for k in k_to_test}
         for time in times:
-            time_dict[(time[0], time[1])] += time[2]
+            time_dict[time[0]] += time[1]
         return time_dict
 
 
@@ -212,7 +205,7 @@ class FindOptimalKPipeline:
     FindOptimalKPipeline:
     """
 
-    def __init__(self, project_dir: str, mink: int, maxk: int, steps: list, times) -> None:
+    def __init__(self, project_dir: str, mink: int, maxk: int, times) -> None:
         if os.path.isdir(project_dir) == True:
             self.project_dir = project_dir
         else:
@@ -232,13 +225,6 @@ class FindOptimalKPipeline:
         else:
             self.maxk = maxk
 
-        if type(steps) != list:
-            raise TypeError("--steps must be a list of positive integers!")
-        elif any(s < 1 for s in steps):
-            raise ValueError("--steps must be a list of positive integers!")
-        else:
-            self.steps = steps
-
         try:
             with open(f"{project_dir}/config.yaml", "r") as config_file:
                 config = yaml.safe_load(config_file)
@@ -255,25 +241,24 @@ class FindOptimalKPipeline:
             else:
                 self.goi = None
                 self.control_groups = None
-    
+
         except:
             raise FileNotFoundError(
                 f"No config.yaml file found in directory {project_dir} or the file has missing/wrong configuration!"
             )
         self.times = times
 
+    def _calc_metrics(self, k: int, verbose: bool = False):
 
-    def _calc_metrics(self, s: int, k: int, verbose: bool = False):
-        
         start_time = process_time()
         if verbose == True:
-            print(f"Calculating metrics for {k}-mers with step {s}.", flush=True)
+            print(f"Calculating metrics for {k}-mers.", flush=True)
         kmer_set = set()
         sample_list = []
-        kmer_set_in_path = pathlib.Path(f"{self.project_dir}/input/{s}_step/").glob(
-            f"*_{k}mer_set.pkl"
+        kmer_set_in_path = pathlib.Path(f"{self.project_dir}/input/indices/").glob(
+            f"{k}mer_*_set.pkl"
         )
-        sample_list_in_path = pathlib.Path(f"{self.project_dir}/input/").glob(
+        sample_list_in_path = pathlib.Path(f"{self.project_dir}/input/indices/").glob(
             "*sample_list.pkl"
         )
 
@@ -283,7 +268,7 @@ class FindOptimalKPipeline:
             kmer_set.update(partial_set)
         if len(kmer_set) == 0:
             if verbose == True:
-                print(f"No {k}-mers with {s} step found. Skipping.", flush=True)
+                print(f"No {k}-mers found. Skipping.", flush=True)
             return None
         kmer_set = list(kmer_set)
 
@@ -297,7 +282,7 @@ class FindOptimalKPipeline:
         all_kmer_stat_matrix = pd.DataFrame(
             0.0,
             index=kmer_set,
-            columns=[col for col in self.freq_cols]+[col for col in self.avg_cols],
+            columns=[col for col in self.freq_cols] + [col for col in self.avg_cols],
             dtype=np.float64,
         )
 
@@ -313,7 +298,7 @@ class FindOptimalKPipeline:
         }
         tot_samples = len(sample_list)
 
-        in_path = pathlib.Path(f"{self.project_dir}/input/{s}_step/").glob(
+        in_path = pathlib.Path(f"{self.project_dir}/input/indices/").glob(
             f"{k}mer_*_avg_dict.pkl"
         )
         for filename in in_path:
@@ -322,7 +307,7 @@ class FindOptimalKPipeline:
             column_name = "_".join(filename.stem.split("_")[1:-1])
             all_kmer_stat_matrix[column_name] = temp_dict
 
-        in_path = pathlib.Path(f"{self.project_dir}/input/{s}_step/").glob(
+        in_path = pathlib.Path(f"{self.project_dir}/input/indices/").glob(
             f"{k}mer_*_freq_dict.pkl"
         )
         for filename in in_path:
@@ -354,54 +339,69 @@ class FindOptimalKPipeline:
                     * np.log2(1 - all_kmer_stat_matrix["F"])
                 ),
             )
-        min_F = (min(group_len_dict.values()) / 2) / tot_samples
+        min_F = 2/tot_samples
         min_H = -(min_F * np.log2(min_F) + (1 - min_F) * np.log2(1 - min_F))
-
         tot_kmer = len(all_kmer_stat_matrix)
         all_kmer_stat_matrix = all_kmer_stat_matrix.loc[
             all_kmer_stat_matrix["H"] >= min_H
         ]
         sig_kmer = len(all_kmer_stat_matrix)
-
+        if verbose == True:
+            print(
+                f"{sig_kmer} of {tot_kmer} {k}-mers left after filtering with entropy threshold of {min_H}.",
+                flush=True,
+            )
         all_kmer_stat_matrix["unique"] = 0
         for kmer in all_kmer_stat_matrix.index:
-            if all([all_kmer_stat_matrix.loc[kmer, avg_col]-all_kmer_stat_matrix.loc[kmer, freq_col] == 0 for avg_col, freq_col in zip(self.avg_cols, self.freq_cols)]):
-                all_kmer_stat_matrix.loc[kmer,"unique"] = 1
-        cos_distances = []
-        err_cols = []
-        if self.mode == "ovr":
-            for j in range(len(self.control_groups)):
-                err_name = f"{self.goi}-{self.control_groups[j]}_err"
-                err_cols.append(err_name)
-                avg_counts_goi = all_kmer_stat_matrix[
-                    f"{self.goi}_avg"
+            if all(
+                [
+                    all_kmer_stat_matrix.loc[kmer, avg_col]
+                    - all_kmer_stat_matrix.loc[kmer, freq_col]
+                    == 0
+                    for avg_col, freq_col in zip(self.avg_cols, self.freq_cols)
                 ]
-                avg_counts_j = all_kmer_stat_matrix[
-                    f"{self.sample_groups[j]}_avg"
-                ]
-                all_kmer_stat_matrix[err_name] = avg_counts_goi - avg_counts_j
-                cos_distances.append(
-                    1
-                    - np.dot(avg_counts_goi, avg_counts_j)
-                    / (np.linalg.norm(avg_counts_goi) * np.linalg.norm(avg_counts_j))
-                )
-        elif self.mode == "ava":
-            for j in range(1, len(self.sample_groups)):
-                for i in range(j):
-                    err_name = f"{self.sample_groups[i]}-{self.sample_groups[j]}_err"
-                    err_cols.append(err_name)
-                    avg_counts_i = all_kmer_stat_matrix[
-                        f"{self.sample_groups[i]}_avg"
-                    ]
-                    avg_counts_j = all_kmer_stat_matrix[
-                        f"{self.sample_groups[j]}_avg"
-                    ]
-                    all_kmer_stat_matrix[err_name] = avg_counts_i - avg_counts_j
-                    cos_distances.append(
-                        1
-                        - np.dot(avg_counts_i, avg_counts_j)
-                        / (np.linalg.norm(avg_counts_i) * np.linalg.norm(avg_counts_j))
-                    )
+            ):
+                all_kmer_stat_matrix.loc[kmer, "unique"] = 1
+        unique_kmer = len(all_kmer_stat_matrix.loc[all_kmer_stat_matrix["unique"] == 1])
+        # cos_distances = []
+        # err_cols = []
+        # if self.mode == "ovr":
+        #     for j in range(len(self.control_groups)):
+        #         err_name = f"{self.goi}-{self.control_groups[j]}_err"
+        #         err_cols.append(err_name)
+        #         avg_counts_goi = all_kmer_stat_matrix[f"{self.goi}_avg"]
+        #         avg_counts_j = all_kmer_stat_matrix[f"{self.sample_groups[j]}_avg"]
+        #         all_kmer_stat_matrix.loc[:,err_name] = avg_counts_goi - avg_counts_j
+        #         cos_distances.append(
+        #             1
+        #             - np.dot(avg_counts_goi, avg_counts_j)
+        #             / (
+        #                 np.linalg.norm(avg_counts_goi)
+        #                 * np.linalg.norm(avg_counts_j)
+        #             )
+        #         )
+        # elif self.mode == "ava":
+        #     for j in range(1, len(self.sample_groups)):
+        #         for i in range(j):
+        #             err_name = (
+        #                 f"{self.sample_groups[i]}-{self.sample_groups[j]}_err"
+        #             )
+        #             err_cols.append(err_name)
+        #             avg_counts_i = all_kmer_stat_matrix[
+        #                 f"{self.sample_groups[i]}_avg"
+        #             ]
+        #             avg_counts_j = all_kmer_stat_matrix[
+        #                 f"{self.sample_groups[j]}_avg"
+        #             ]
+        #             all_kmer_stat_matrix.loc[:,err_name] = avg_counts_i - avg_counts_j
+        #             cos_distances.append(
+        #                 1
+        #                 - np.dot(avg_counts_i, avg_counts_j)
+        #                 / (
+        #                     np.linalg.norm(avg_counts_i)
+        #                     * np.linalg.norm(avg_counts_j)
+        #                 )
+        #             )
 
         # max_avg_count = all_kmer_stat_matrix[self.avg_cols].max(axis=None)
         # avg_distance = 0
@@ -414,11 +414,13 @@ class FindOptimalKPipeline:
         # all_kmer_stat_matrix["RMSE"] = np.sqrt(
         #     ((all_kmer_stat_matrix[err_cols]) ** 2).mean(axis=1)
         # )/max_avg_count
-        
-        dt = process_time() - start_time
-        mem = sig_kmer/tot_kmer
         # mem = round(all_kmer_stat_matrix.memory_usage(index=True, deep=True).sum()/2**20, 3)
-        spec = np.mean(cos_distances)
+
+        spec = unique_kmer/sig_kmer
+        # spec = np.mean(cos_distances)
+        dt = process_time() - start_time
+        mem = float(f"{np.mean(all_kmer_stat_matrix['H']):.1g}")
+
 
         # fig, ax = plt.subplots()
         # fig.tight_layout()
@@ -434,34 +436,28 @@ class FindOptimalKPipeline:
         #     f"{self.project_dir}/temp/{s}step_{k}mer_dist.png", format="png", dpi=300
         # )
 
-
         # all_kmer_stat_matrix.index = all_kmer_stat_matrix.index.map(
         #     lambda id: portek.decode_kmer(id, k)
         # )
-        # all_kmer_stat_matrix.sort_values("RMSE", ascending=False).to_csv(
-        #     f"{self.project_dir}/temp/{s}step_{k}mer_matrix.csv"
+        # all_kmer_stat_matrix.sort_values(err_cols[0], ascending=False).to_csv(
+        #     f"{self.project_dir}/temp/{k}mer_matrix.csv"
         # )
 
         if verbose == True:
-            print(f"Done calculating metrics for {k}-mers with step {s}.", flush=True)
-        
+            print(f"Done calculating metrics for {k}-mers.", flush=True)
 
-        return s, k, spec, mem, dt, sig_kmer
+        return k, spec, mem, dt, sig_kmer
 
     def find_optimal_k(self, n_jobs: int = 4, verbose: bool = False):
-        print("Finding optimal s and k.")
-        k_to_test = [k for k in range(self.mink, self.maxk + 1, 2)]
-        calc_kmers_pool_input = []
-        for k in k_to_test:
-            for s in [1,5]:
-                calc_kmers_pool_input.append([s,k,verbose])
+        print("Finding optimal k.")
+        k_to_test = [(k, verbose) for k in range(self.mink, self.maxk + 1, 2)]
 
         with multiprocessing.get_context("forkserver").Pool(n_jobs) as pool:
-            results = pool.starmap(self._calc_metrics, calc_kmers_pool_input, chunksize=1)
+            results = pool.starmap(self._calc_metrics, k_to_test, chunksize=1)
 
         result_df = pd.DataFrame(
             0,
-            index=pd.MultiIndex.from_tuples([sk[:-1] for sk in calc_kmers_pool_input]),
+            index=range(self.mink, self.maxk + 1, 2),
             columns=["spec", "mem", "dt", "spec_rank", "mem_rank", "dt_rank", "score"],
             dtype=float,
         )
@@ -469,43 +465,45 @@ class FindOptimalKPipeline:
 
         for result in results:
             if result != None:
-                if result[5] >= 100:
-                    result_df.loc[(result[0], result[1]), "mem"] = round(
-                        result[3], 4
-                    )
-                    result_df.loc[(result[0], result[1]), "spec"] = round(result[2], 4)
-                    result_df.loc[(result[0], result[1]), "dt"] = result[4]
+                if result[4] >= 100:
+                    result_df.loc[result[0], "mem"] = result[2]
+                    result_df.loc[result[0], "spec"] = round(result[1]*100)
+                    result_df.loc[result[0], "dt"] = result[3]
                 else:
-                    result_df = result_df.drop(labels=[(result[0], result[1])])
-                    print(f"Fewer than 100 {result[1]}-mers with step {result[0]} passed the entropy filter, they will be ignored.")
+                    result_df = result_df.drop(labels=[result[0]])
+                    print(
+                        f"Fewer than 100 {result[0]}-mers passed the entropy filter, they will be ignored."
+                    )
 
-        for sk, time in self.times.items():
-            if sk in result_df.index:
-                result_df.loc[sk,"dt"] += time
+        for k, time in self.times.items():
+            if k in result_df.index:
+                result_df.loc[k, "dt"] += time
         result_df["dt"] = result_df["dt"].round(3)
 
-        result_df["spec_rank"] = result_df["spec"].rank(ascending=False)
-        result_df["mem_rank"] = result_df["mem"].rank(ascending=False)
-        result_df["dt_rank"] = result_df["dt"].rank()
-        result_df["score"] = len(result_df)+1-result_df["spec_rank"]-result_df["mem_rank"]-result_df["dt_rank"]
-        result_df = result_df.sort_values(["spec_rank", "mem_rank", "dt_rank"])
+        result_df["spec_rank"] = result_df["spec"].rank(method='dense')
+        result_df["mem_rank"] = result_df["mem"].rank(method='dense')
+        result_df["dt_rank"] = result_df["dt"].rank(method='dense')
+        result_df["score"] = (
+            result_df["spec_rank"]
+            + result_df["mem_rank"]
+            - result_df["dt_rank"]
+        )
+        result_df = result_df.sort_values("score", ascending=False)
 
         with open(
             f"{self.project_dir}/output/k_selection_results.txt", mode="w"
         ) as out_file:
-            out_file.write(f"\nHere are the results of optimal step and k selection out of {len(result_df)} combinations:\n")
-            for s, k in result_df.index:
-                out_file.write(
-                    f"\nstep: {s}, k: {k}, average cosine distance: {result_df.loc[(s,k),'spec']} ({result_df.loc[(s,k),'spec_rank']}), kmers passing entropy filter: {result_df.loc[(s,k),'mem']*100}% ({result_df.loc[(s,k),'mem_rank']}), CPU time {result_df.loc[(s,k),'dt']} s ({result_df.loc[(s,k),'dt_rank']}), score {result_df.loc[(s,k),'score']}."
-                )
-            best_sk = result_df.idxmax()["spec"]
-            best_compromise_sk = result_df.idxmax()["score"]
             out_file.write(
-                f"\n\nStep and k values of {best_sk} give the best separation of groups in your data!"
-                f"\nThey are the {portek.make_ordinal(result_df.loc[best_sk, 'dt_rank'])} and {portek.make_ordinal(result_df.loc[best_sk, 'mem_rank'])} most efficient by CPU and memory usage, respectively"
-                f"\n\nStep and k values of {best_compromise_sk} are the best compromise of specificity and efficiency!"
-                f"\nThey give the {portek.make_ordinal(result_df.loc[best_compromise_sk, 'spec_rank'])} best speration of groups."
-                f"\nThey are the {portek.make_ordinal(result_df.loc[best_compromise_sk, 'dt_rank'])} and {portek.make_ordinal(result_df.loc[best_compromise_sk, 'mem_rank'])} most efficient by CPU and memory usage, respectively"
+                f"\nHere are the results of optimal k selection:\n"
+            )
+            for k in result_df.index:
+                out_file.write(
+                    f"\nk: {k}, Unique kmers: {result_df.loc[k,'spec']}% ({result_df.loc[k,'spec_rank']}), average k-mer entropy: {result_df.loc[k,'mem']} ({result_df.loc[k,'mem_rank']}), CPU time {result_df.loc[k,'dt']} s ({result_df.loc[k,'dt_rank']}), score {result_df.loc[k,'score']}."
+                )
+            best_k = result_df.idxmax()["score"]
+            out_file.write(
+                f"\n\nPORT-EK thinks k value of {best_k} is the best for your data!"
+                f"\nIt has the {portek.make_ordinal(1+len(result_df)-result_df.loc[best_k, 'spec_rank'])} highest percentage of unique k-mers, {portek.make_ordinal(1+len(result_df)-result_df.loc[best_k, 'mem_rank'])} highest average entorpy and is {portek.make_ordinal(result_df.loc[best_k, 'mem_rank'])} most efficient by CPU time, respectively."
             )
         with open(
             f"{self.project_dir}/output/k_selection_results.txt", mode="r"
@@ -514,5 +512,5 @@ class FindOptimalKPipeline:
                 print(out_file.read())
             else:
                 lines = out_file.readlines()
-                tail = lines[:3]+lines[-6:]
+                tail = lines[:3] + lines[-6:]
                 print(*tail)
