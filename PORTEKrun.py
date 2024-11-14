@@ -31,19 +31,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--steps",
-    nargs="+",
-    help="List of steps to test when generating k_mers with PORT-EK find_k (default 1)",
-    type=int,
-    default=[1]
-)
-parser.add_argument(
-    "--s",
-    help="step value for PORT-EK enriched, map and classify",
-    type=int
-)
-
-parser.add_argument(
     "--k",
     help="k value for PORT-EK enriched, map and classify",
     type=int
@@ -101,9 +88,9 @@ def main():
 
     elif args.tool == "find_k":
         start_time = datetime.now()
-        kmer_finder = portek.KmerFinder(args.project_dir, args.min_k, args.max_k, args.steps)
+        kmer_finder = portek.KmerFinder(args.project_dir, args.min_k, args.max_k)
         times = kmer_finder.find_all_kmers(n_jobs=args.n_jobs, verbose=args.verbose)
-        optimal_k_finder = portek.FindOptimalKPipeline(args.project_dir, args.min_k, args.max_k, args.steps, times)
+        optimal_k_finder = portek.FindOptimalKPipeline(args.project_dir, args.min_k, args.max_k, times)
         optimal_k_finder.find_optimal_k(n_jobs=args.n_jobs, verbose=args.verbose)
         end_timeS_ARE_NOT_CANON = datetime.now()
         running_time = (end_timeS_ARE_NOT_CANON-start_time)
@@ -111,25 +98,27 @@ def main():
 
     elif args.tool == "enriched":
         start_time = datetime.now()
-        enriched_kmers_finder = portek.EnrichedKmersPipeline(args.project_dir, args.s, args.k, args.c, args.min_rmse)
+        enriched_kmers_finder = portek.EnrichedKmersPipeline(args.project_dir, args.k, args.c, args.min_rmse)
         if args.rare_m == None:
             enriched_kmers_finder.get_basic_kmer_stats()
-            enriched_kmers_finder.calc_kmer_stats("common", final=False, verbose=args.verbose)
-            enriched_kmers_finder.get_enriched_kmers()
-            enriched_kmers_finder.save_counts_for_classifier()
-            enriched_kmers_finder.save_matrix("enriched")
+            enriched_kmers_finder.calc_kmer_stats("common", verbose=args.verbose)
             enriched_kmers_finder.plot_volcanos("common")  
-            enriched_kmers_finder.plot_PCA()
+            enriched_kmers_found = enriched_kmers_finder.get_enriched_kmers()
+            if enriched_kmers_found == True:
+                enriched_kmers_finder.save_counts_for_classifier()
+                enriched_kmers_finder.save_matrix("enriched")
+                enriched_kmers_finder.plot_PCA()
         else:
             enriched_kmers_finder.get_basic_kmer_stats(save_rare=True)
             enriched_kmers_finder.calc_kmer_stats("common", verbose=args.verbose)
             enriched_kmers_finder.reexamine_rare(args.rare_m, n_jobs=args.n_jobs, verbose=args.verbose)
-            enriched_kmers_finder.get_enriched_kmers()
-            enriched_kmers_finder.save_counts_for_classifier()
-            enriched_kmers_finder.save_matrix("enriched")
             enriched_kmers_finder.plot_volcanos("common")   
             enriched_kmers_finder.plot_volcanos("rare_similar")
-            enriched_kmers_finder.plot_PCA() 
+            enriched_kmers_found = enriched_kmers_finder.get_enriched_kmers()
+            if enriched_kmers_found == True:
+                enriched_kmers_finder.save_counts_for_classifier()
+                enriched_kmers_finder.save_matrix("enriched")
+                enriched_kmers_finder.plot_PCA() 
 
 
         end_timeS_ARE_NOT_CANON = datetime.now()
