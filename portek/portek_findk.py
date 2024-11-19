@@ -419,7 +419,7 @@ class FindOptimalKPipeline:
         spec = unique_kmer/sig_kmer
         # spec = np.mean(cos_distances)
         dt = process_time() - start_time
-        mem = float(f"{np.mean(all_kmer_stat_matrix['H']):.1g}")
+        mem = float(f"{np.mean(all_kmer_stat_matrix['H']):.2g}")
 
 
         # fig, ax = plt.subplots()
@@ -480,9 +480,9 @@ class FindOptimalKPipeline:
                 result_df.loc[k, "dt"] += time
         result_df["dt"] = result_df["dt"].round(3)
 
-        result_df["spec_rank"] = result_df["spec"].rank(method='dense')
-        result_df["mem_rank"] = result_df["mem"].rank(method='dense')
-        result_df["dt_rank"] = result_df["dt"].rank(method='dense')
+        result_df["spec_rank"] = result_df["spec"].rank(method='max')
+        result_df["mem_rank"] = result_df["mem"].rank(method='max')
+        result_df["dt_rank"] = result_df["dt"].rank(method='max')
         result_df["score"] = (
             result_df["spec_rank"]
             + result_df["mem_rank"]
