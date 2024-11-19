@@ -5,6 +5,9 @@ import regex
 from matplotlib import pyplot, collections, colormaps, patches, colors
 from datetime import datetime
 from scipy import stats
+from scipy.spatial import distance
+from scipy.cluster import hierarchy
+
 
 
 def encode_kmer(kmer_seq: str) -> int:
@@ -30,32 +33,35 @@ def filter_kmers(kmer_df: pd.DataFrame, freq_cols: list, cons_thr=0.01) -> pd.Da
 
 
 def calc_kmer_pvalue(kmer: str, first_group, sec_group, matrix: pd.DataFrame):
-    first_obs = (
-        matrix.loc[kmer, first_group]
-        .value_counts(sort=False)
-        .reindex([0, 1], fill_value=0)
-        .to_numpy()
-    )
-    sec_obs = (
-        matrix.loc[kmer, sec_group]
-        .value_counts(sort=False)
-        .reindex([0, 1], fill_value=0)
-        .to_numpy()
-    )
-    cont_table = np.concatenate([first_obs, sec_obs]).reshape(2, 2).T
-    test_result = stats.fisher_exact(cont_table)
+    first_obs = matrix.loc[kmer, first_group]
+    sec_obs = matrix.loc[kmer, sec_group]
+    test_result = stats.mannwhitneyu(first_obs, sec_obs)
     return test_result.pvalue
 
 
-def assign_kmer_group(row: pd.Series, p_cols: list, avg_cols: list):
+def assign_kmer_group_ava(row: pd.Series, p_cols: list, avg_cols: list, freq_cols: list, err_cols:list):
     max_group = row[avg_cols].idxmax()
     max_group = max_group.split("_")[0]
     rel_p_cols = [col for col in p_cols if max_group in col]
-    if all(row[rel_p_cols] < 0.01):
+    if all(row[freq_cols] > 0.9) and all(abs(row[err_cols]) < 0.1):
+        return "conserved"
+    elif all(row[rel_p_cols] < 0.01):
         return f"{max_group}_enriched"
     else:
-        return "not significant"
+        return "not_significant"
 
+def assign_kmer_group_ovr(row: pd.Series, goi:str, p_cols: list, err_cols: list, freq_cols: list):
+    if all(row[freq_cols] > 0.9) and all(abs(row[err_cols]) < 0.1):
+        return "conserved"
+    elif all(row[p_cols] < 0.01) and all(row[err_cols] > 0):
+        return f"{goi}_enriched"
+    elif all(row[p_cols] < 0.01) and all(row[err_cols] < 0):
+        return "control_enriched"
+    elif any(row[p_cols] < 0.01):
+        return "group_dependent"
+
+    else:
+        return "not_significant"
 
 def check_exclusivity(row: pd.Series, avg_cols: list) -> str:
     if len([col for col in avg_cols if row[col] > 0]) == 1:
@@ -65,13 +71,14 @@ def check_exclusivity(row: pd.Series, avg_cols: list) -> str:
 
 
 def build_similarity_graph_two_list(
-    query_list, target_list, mismatch_treshold: int
+    name, query_list, target_list, mismatch_treshold: int
 ) -> nx.Graph:
 
     tot = len(query_list)
     similarity_edges = set()
     i = 1
     t0 = datetime.now()
+    
     for query_kmer in query_list:
         similarity_edges.add((query_kmer, query_kmer))
         for target_kmer in target_list:
@@ -89,7 +96,7 @@ def build_similarity_graph_two_list(
         i += 1
 
     silmilarity_graph = nx.Graph(similarity_edges)
-    return silmilarity_graph
+    return name, silmilarity_graph
 
 
 def calc_agg_freq(kmer_list, sample_list, source_df):
@@ -103,7 +110,7 @@ def calc_agg_freq(kmer_list, sample_list, source_df):
     return agg_freq
 
 
-# Future upgrade: if results found for i, but more than l away and thus discarded, go back to i+1.
+# Deprecated
 def map_kmers_find_mutations(kmer, ref_seq_str, pos_matrix, n=2, l=1000, find_wt=False):
     for i in range(n + 1):
         m = regex.findall(f"({kmer}){{s<={i}}}", ref_seq_str)
@@ -148,6 +155,13 @@ def map_kmers_find_mutations(kmer, ref_seq_str, pos_matrix, n=2, l=1000, find_wt
         alignment = None
         mutations = {"id": [], "ref_nt": [], "pos": [], "mut_nt": [], "kmer": []}
     return alignment, mutations
+
+
+def cluster_kmer_counts(matrix):
+    distances = distance.pdist(matrix)
+    linkage = hierarchy.linkage(distances)
+    clustering = hierarchy.fcluster(linkage, 0, criterion="distance")
+    matrix["cluster"] = clustering
 
 
 def assemble_kmers(
@@ -278,3 +292,45 @@ def plot_kmers_by_genome(
             y += 1
             
     _draw_genome_overlay_plot(segment_coords, segment_colors,ref_seq, title, colormap, save_path, save_format)
+
+def assign_gene_from_interval(ref_pos: list, gene_dict: dict) -> str:
+    genes = []
+    for start, end in ref_pos:
+        for gene, gene_ranges in gene_dict.items():
+            for gene_range in gene_ranges:
+                if (
+                    len(
+                        [
+                            pos
+                            for pos in range(start, end + 1)
+                            if pos in list(range(gene_range[0], gene_range[1] + 1))
+                        ]
+                    )
+                    > 0
+                ):
+                    genes.append(gene)
+
+def assign_gene_from_position(ref_pos: int, gene_dict: dict) -> str:
+    genes = []
+    for gene, gene_ranges in gene_dict.items():
+        for gene_range in gene_ranges:
+            if gene_range[0] < ref_pos < gene_range[1]:
+                genes.append(gene)
+    return ", ".join(genes)
+
+def make_ordinal(n):
+    '''
+    Convert an integer into its ordinal representation::
+
+        make_ordinal(0)   => '0th'
+        make_ordinal(3)   => '3rd'
+        make_ordinal(122) => '122nd'
+        make_ordinal(213) => '213th'
+    '''
+    n = int(n)
+    if 11 <= (n % 100) <= 13:
+        suffix = 'th'
+    else:
+        suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
+    return str(n) + suffix
+
