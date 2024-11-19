@@ -444,7 +444,7 @@ class EnrichedKmersPipeline:
                     flush=True,
                 )
                 counter += 1
-        cos_distances = []
+        # cos_distances = []
         print(f"\nIdentifying enriched {self.k}-mers.")
         if self.mode == "ava":
             err_cols = []
@@ -462,11 +462,11 @@ class EnrichedKmersPipeline:
                         f"{self.sample_groups[j]}_avg"
                     ]
                     self.matrices[matrix_type][err_name] = avg_counts_i - avg_counts_j
-                    cos_distances.append(
-                        1
-                        - np.dot(avg_counts_i, avg_counts_j)
-                        / (np.linalg.norm(avg_counts_i) * np.linalg.norm(avg_counts_j))
-                    )
+                    # cos_distances.append(
+                    #     1
+                    #     - np.dot(avg_counts_i, avg_counts_j)
+                    #     / (np.linalg.norm(avg_counts_i) * np.linalg.norm(avg_counts_j))
+                    # )
                     self.matrices[matrix_type][p_name] = self.matrices[
                         matrix_type
                     ].index.map(
@@ -512,11 +512,11 @@ class EnrichedKmersPipeline:
                 avg_counts_goi = self.matrices[matrix_type][f"{self.goi}_avg"]
                 avg_counts_j = self.matrices[matrix_type][f"{group}_avg"]
                 self.matrices[matrix_type][err_name] = avg_counts_goi - avg_counts_j
-                cos_distances.append(
-                    1
-                    - np.dot(avg_counts_goi, avg_counts_j)
-                    / (np.linalg.norm(avg_counts_goi) * np.linalg.norm(avg_counts_j))
-                )
+                # cos_distances.append(
+                #     1
+                #     - np.dot(avg_counts_goi, avg_counts_j)
+                #     / (np.linalg.norm(avg_counts_goi) * np.linalg.norm(avg_counts_j))
+                # )
                 self.matrices[matrix_type][p_name] = self.matrices[
                     matrix_type
                 ].index.map(
@@ -548,7 +548,7 @@ class EnrichedKmersPipeline:
                 matrix_type
             ].apply(portek.check_exclusivity, avg_cols=self.avg_cols, axis=1)
 
-        avg_cos_dist = np.mean(cos_distances)
+        # avg_cos_dist = np.mean(cos_distances)
         self.enriched_groups = [
             name.split("_")[0]
             for name in self.matrices[matrix_type]["group"].value_counts().index
@@ -557,7 +557,7 @@ class EnrichedKmersPipeline:
         self.err_cols = err_cols
         self.p_cols = p_cols
 
-        return avg_cos_dist
+        # return avg_cos_dist
 
     def _load_rare_graphs(self, m):
         graph_in_path = pathlib.Path(f"{self.project_dir}/temp/").glob(
@@ -713,9 +713,11 @@ class EnrichedKmersPipeline:
     def get_enriched_kmers(self):
         if "rare_similar" not in self.matrices.keys():
             self.matrices["enriched"] = self.matrices["common"].loc[
-                (self.matrices["common"]["group"] != "not_significant")
-                & (self.matrices["common"]["group"] != "group_dependent")
-                & (self.matrices["common"]["RMSE"] > self.min_rmse)
+                (
+                    (self.matrices["common"]["group"] != "not_significant")
+                    & (self.matrices["common"]["group"] != "group_dependent")
+                    & (self.matrices["common"]["RMSE"] > self.min_rmse)
+                )
                 | (self.matrices["common"]["group"] == "conserved")
             ]
         else:
@@ -730,9 +732,17 @@ class EnrichedKmersPipeline:
                         | (self.matrices["common"]["group"] == "conserved")
                     ],
                     self.matrices["rare_similar"].loc[
-                        (self.matrices["rare_similar"]["group"] != "not_significant")
-                        & (self.matrices["rare_similar"]["group"] != "group_dependent")
-                        & (self.matrices["rare_similar"]["RMSE"] > self.min_rmse)
+                        (
+                            (
+                                self.matrices["rare_similar"]["group"]
+                                != "not_significant"
+                            )
+                            & (
+                                self.matrices["rare_similar"]["group"]
+                                != "group_dependent"
+                            )
+                            & (self.matrices["rare_similar"]["RMSE"] > self.min_rmse)
+                        )
                         | (self.matrices["common"]["group"] == "conserved")
                     ],
                 ]
