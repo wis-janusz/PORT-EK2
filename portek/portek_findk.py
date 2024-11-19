@@ -24,20 +24,13 @@ class KmerFinder:
     KmerFinder:
     """
 
-    def __init__(self, project_dir: str, mink: int, maxk: int) -> None:
+    def __init__(self, project_dir: str, maxk: int) -> None:
         if os.path.isdir(project_dir) == True:
             self.project_dir = project_dir
         else:
             raise NotADirectoryError("Project directory does not exist!")
 
-        if type(mink) != int or mink < 5 or mink % 2 == 0 or mink > maxk:
-            raise TypeError(
-                "Minimum k must by an odd integer not smaller than 5 and not bigger than maximum k!"
-            )
-        else:
-            self.mink = mink
-
-        if type(maxk) != int or maxk < 5 or maxk % 2 == 0 or maxk < mink:
+        if type(maxk) != int or maxk < 5 or maxk % 2 == 0:
             raise TypeError(
                 "Maximum k must by an odd integer not smaller than 5 and not smaller than minimum k!"
             )
@@ -174,10 +167,10 @@ class KmerFinder:
 
     def find_all_kmers(self, n_jobs: int = 4, verbose: bool = False):
         print(
-            f"Finding all k-mers of lengths {self.mink} to {self.maxk} in {len(self.sample_groups)} files.",
+            f"Finding all k-mers of lengths {5} to {self.maxk} in {len(self.sample_groups)} files.",
             flush=True,
         )
-        k_to_test = [k for k in range(self.mink, self.maxk + 1, 2)]
+        k_to_test = [k for k in range(5, self.maxk + 1, 2)]
         k_to_test.reverse()
 
         find_kmers_pool_input = []
@@ -205,20 +198,13 @@ class FindOptimalKPipeline:
     FindOptimalKPipeline:
     """
 
-    def __init__(self, project_dir: str, mink: int, maxk: int, times) -> None:
+    def __init__(self, project_dir: str, maxk: int, times) -> None:
         if os.path.isdir(project_dir) == True:
             self.project_dir = project_dir
         else:
             raise NotADirectoryError("Project directory does not exist!")
 
-        if type(mink) != int or mink < 5 or mink % 2 == 0 or mink > maxk:
-            raise TypeError(
-                "Minimum k must by an odd integer not smaller than 5 and not bigger than maximum k!"
-            )
-        else:
-            self.mink = mink
-
-        if type(maxk) != int or maxk < 5 or maxk % 2 == 0 or maxk < mink:
+        if type(maxk) != int or maxk < 5 or maxk % 2 == 0:
             raise TypeError(
                 "Maximum k must by an odd integer not smaller than 5 and not smaller than minimum k!"
             )
@@ -363,85 +349,10 @@ class FindOptimalKPipeline:
             ):
                 all_kmer_stat_matrix.loc[kmer, "unique"] = 1
         unique_kmer = len(all_kmer_stat_matrix.loc[all_kmer_stat_matrix["unique"] == 1])
-        # cos_distances = []
-        # err_cols = []
-        # if self.mode == "ovr":
-        #     for j in range(len(self.control_groups)):
-        #         err_name = f"{self.goi}-{self.control_groups[j]}_err"
-        #         err_cols.append(err_name)
-        #         avg_counts_goi = all_kmer_stat_matrix[f"{self.goi}_avg"]
-        #         avg_counts_j = all_kmer_stat_matrix[f"{self.sample_groups[j]}_avg"]
-        #         all_kmer_stat_matrix.loc[:,err_name] = avg_counts_goi - avg_counts_j
-        #         cos_distances.append(
-        #             1
-        #             - np.dot(avg_counts_goi, avg_counts_j)
-        #             / (
-        #                 np.linalg.norm(avg_counts_goi)
-        #                 * np.linalg.norm(avg_counts_j)
-        #             )
-        #         )
-        # elif self.mode == "ava":
-        #     for j in range(1, len(self.sample_groups)):
-        #         for i in range(j):
-        #             err_name = (
-        #                 f"{self.sample_groups[i]}-{self.sample_groups[j]}_err"
-        #             )
-        #             err_cols.append(err_name)
-        #             avg_counts_i = all_kmer_stat_matrix[
-        #                 f"{self.sample_groups[i]}_avg"
-        #             ]
-        #             avg_counts_j = all_kmer_stat_matrix[
-        #                 f"{self.sample_groups[j]}_avg"
-        #             ]
-        #             all_kmer_stat_matrix.loc[:,err_name] = avg_counts_i - avg_counts_j
-        #             cos_distances.append(
-        #                 1
-        #                 - np.dot(avg_counts_i, avg_counts_j)
-        #                 / (
-        #                     np.linalg.norm(avg_counts_i)
-        #                     * np.linalg.norm(avg_counts_j)
-        #                 )
-        #             )
-
-        # max_avg_count = all_kmer_stat_matrix[self.avg_cols].max(axis=None)
-        # avg_distance = 0
-        # for col in err_cols:
-        #     err_norm = all_kmer_stat_matrix[col]/max_avg_count
-        #     avg_distance += np.sqrt((err_norm**2).sum())
-
-        # avg_distance = avg_distance
-
-        # all_kmer_stat_matrix["RMSE"] = np.sqrt(
-        #     ((all_kmer_stat_matrix[err_cols]) ** 2).mean(axis=1)
-        # )/max_avg_count
-        # mem = round(all_kmer_stat_matrix.memory_usage(index=True, deep=True).sum()/2**20, 3)
 
         spec = unique_kmer/sig_kmer
-        # spec = np.mean(cos_distances)
         dt = process_time() - start_time
         mem = float(f"{np.mean(all_kmer_stat_matrix['H']):.2g}")
-
-
-        # fig, ax = plt.subplots()
-        # fig.tight_layout()
-        # sns.kdeplot(data=all_kmer_stat_matrix,x='H', y="RMSE", fill=True, cmap="mako")
-        # ax.axhline(spec, color="orange")
-        # ax.axvline(all_kmer_stat_matrix["H"].mean(), color="orange")
-        # ax.set_xlabel("H")
-        # ax.set_xlim(0, 1)
-        # ax.set_ylabel("Normalized RMSE")
-        # ax.set_ylim(0, 1)
-        # ax.set_title(f"{s} step {k}-mers normalized RMSE vs H distribution")
-        # plt.savefig(
-        #     f"{self.project_dir}/temp/{s}step_{k}mer_dist.png", format="png", dpi=300
-        # )
-
-        # all_kmer_stat_matrix.index = all_kmer_stat_matrix.index.map(
-        #     lambda id: portek.decode_kmer(id, k)
-        # )
-        # all_kmer_stat_matrix.sort_values(err_cols[0], ascending=False).to_csv(
-        #     f"{self.project_dir}/temp/{k}mer_matrix.csv"
-        # )
 
         if verbose == True:
             print(f"Done calculating metrics for {k}-mers.", flush=True)
@@ -450,14 +361,14 @@ class FindOptimalKPipeline:
 
     def find_optimal_k(self, n_jobs: int = 4, verbose: bool = False):
         print("Finding optimal k.")
-        k_to_test = [(k, verbose) for k in range(self.mink, self.maxk + 1, 2)]
+        k_to_test = [(k, verbose) for k in range(5, self.maxk + 1, 2)]
 
         with multiprocessing.get_context("forkserver").Pool(n_jobs) as pool:
             results = pool.starmap(self._calc_metrics, k_to_test, chunksize=1)
 
         result_df = pd.DataFrame(
             0,
-            index=range(self.mink, self.maxk + 1, 2),
+            index=range(5, self.maxk + 1, 2),
             columns=["spec", "mem", "dt", "spec_rank", "mem_rank", "dt_rank", "score"],
             dtype=float,
         )
@@ -512,5 +423,5 @@ class FindOptimalKPipeline:
                 print(out_file.read())
             else:
                 lines = out_file.readlines()
-                tail = lines[:3] + lines[-6:]
+                tail = lines[:3] + lines[-2:]
                 print(*tail)

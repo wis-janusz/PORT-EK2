@@ -16,7 +16,7 @@ Quick usage guide:
 1. Execute `python PORTEKrun.py new $project_directory` to create a new project in project_directory.
 2. Edit the project configuration file and copy fasta files with input seqences to $project_directory/input.
 3. Execute `python PORTEKrun.py find_k $project_directory --max_k $k` where k is the maximum k-mer length of k-mer you want to test, to test different length of k-mers and choose the best one for your data.
-4. Execute `python PORTEKrun.py enriched $project_directory --k k --c $c --min_rmse $mr` to get k-mers enriched in your sample groups, where k is the length of the k-mers, c is the minimum conservation threshold (this will change) and mr is the minimum RMSE of k-mers considered enriched (this will also change)
+4. Execute `python PORTEKrun.py enriched $project_directory --k $k ` to get k-mers enriched in your sample groups, where k is the length of the k-mers.
 5. --TBD--
 
 

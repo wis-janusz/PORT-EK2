@@ -18,34 +18,16 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--min_k",
-    help="Minimum k value to test with PORT-EK find_k (default 5)",
-    type=int,
-    default=5
-
-)
-parser.add_argument(
     "--max_k",
     help="Maximum k value to test with PORT-EK find_k. PORT-EK will test all odd k values from min_k up to and including max_k.",
-    type=int
+    type=int,
+    default = 31
 )
 
 parser.add_argument(
     "--k",
     help="k value for PORT-EK enriched, map and classify",
     type=int
-)
-
-parser.add_argument(
-    "--c",
-    help="Rarity filter threshold for PORT-EK enriched. Portek will only use k-mers that have frquency of more than c in at least one sample group",
-    type=float
-)
-
-parser.add_argument(
-    "--min_rmse",
-    help="RMSE filter threshold for PORT-ek enriched. Portek will discard k-mers with RMSE lower than min_rmse",
-    type=float
 )
 
 parser.add_argument(
@@ -88,9 +70,9 @@ def main():
 
     elif args.tool == "find_k":
         start_time = datetime.now()
-        kmer_finder = portek.KmerFinder(args.project_dir, args.min_k, args.max_k)
+        kmer_finder = portek.KmerFinder(args.project_dir, args.max_k)
         times = kmer_finder.find_all_kmers(n_jobs=args.n_jobs, verbose=args.verbose)
-        optimal_k_finder = portek.FindOptimalKPipeline(args.project_dir, args.min_k, args.max_k, times)
+        optimal_k_finder = portek.FindOptimalKPipeline(args.project_dir, args.max_k, times)
         optimal_k_finder.find_optimal_k(n_jobs=args.n_jobs, verbose=args.verbose)
         end_timeS_ARE_NOT_CANON = datetime.now()
         running_time = (end_timeS_ARE_NOT_CANON-start_time)
@@ -98,7 +80,7 @@ def main():
 
     elif args.tool == "enriched":
         start_time = datetime.now()
-        enriched_kmers_finder = portek.EnrichedKmersPipeline(args.project_dir, args.k, args.c, args.min_rmse)
+        enriched_kmers_finder = portek.EnrichedKmersPipeline(args.project_dir, args.k)
         if args.rare_m == None:
             enriched_kmers_finder.get_basic_kmer_stats()
             enriched_kmers_finder.calc_kmer_stats("common", verbose=args.verbose)

@@ -18,7 +18,7 @@ class EnrichedKmersPipeline:
     EnrichedKmersPipeline:
     """
 
-    def __init__(self, project_dir: str, k: int, c: float, min_rmse: float) -> None:
+    def __init__(self, project_dir: str, k: int) -> None:
         if os.path.isdir(project_dir) == True:
             self.project_dir = project_dir
         else:
@@ -28,22 +28,6 @@ class EnrichedKmersPipeline:
             raise TypeError("k must by an integer!")
         else:
             self.k = k
-
-        if type(c) != float and type(c) != int:
-            raise TypeError("c must by a number between 0.0 and 1.0!")
-        else:
-            if c < 0 or c > 1:
-                raise ValueError("c must by a number between 0.0 and 1.0!")
-            else:
-                self.c = c
-
-        if type(min_rmse) == float or type(min_rmse) == int:
-            if min_rmse < 0:
-                raise ValueError("min_rmse must by a positive number")
-            else:
-                self.min_rmse = min_rmse
-        else:
-            raise ValueError("min_rmse must by a positive number")
 
         try:
             with open(f"{project_dir}/config.yaml", "r") as config_file:
@@ -84,7 +68,7 @@ class EnrichedKmersPipeline:
         self.p_cols = None
         self.matrices = {}
 
-    def get_basic_kmer_stats(self, save_rare: bool = False, verbose: bool = False):
+    def get_basic_kmer_stats(self, save_rare: bool = False):
 
         kmer_set = set()
         sample_list = []
@@ -292,6 +276,7 @@ class EnrichedKmersPipeline:
             f"{len(common_kmer_matrix)} common k-mers remaining after filtering at a threshold of {self.c}."
         )
 
+    # deprecated
     def _calc_pvalue_no_counts(self, kmer, group1, group2, matrix_type):
         group1_len = len(self.sample_group_dict[group1])
         group2_len = len(self.sample_group_dict[group2])
@@ -310,6 +295,7 @@ class EnrichedKmersPipeline:
         test_result = stats.fisher_exact(cont_table)
         return test_result.pvalue
 
+    # deprecated
     def calc_kmer_stats_no_counts(self, matrix_type: str):
         print(f"Identyfying enriched {self.k}-mers.")
         if self.mode == "ava":
@@ -444,7 +430,7 @@ class EnrichedKmersPipeline:
                     flush=True,
                 )
                 counter += 1
-        # cos_distances = []
+
         print(f"\nIdentifying enriched {self.k}-mers.")
         if self.mode == "ava":
             err_cols = []
@@ -462,11 +448,6 @@ class EnrichedKmersPipeline:
                         f"{self.sample_groups[j]}_avg"
                     ]
                     self.matrices[matrix_type][err_name] = avg_counts_i - avg_counts_j
-                    # cos_distances.append(
-                    #     1
-                    #     - np.dot(avg_counts_i, avg_counts_j)
-                    #     / (np.linalg.norm(avg_counts_i) * np.linalg.norm(avg_counts_j))
-                    # )
                     self.matrices[matrix_type][p_name] = self.matrices[
                         matrix_type
                     ].index.map(
@@ -512,11 +493,6 @@ class EnrichedKmersPipeline:
                 avg_counts_goi = self.matrices[matrix_type][f"{self.goi}_avg"]
                 avg_counts_j = self.matrices[matrix_type][f"{group}_avg"]
                 self.matrices[matrix_type][err_name] = avg_counts_goi - avg_counts_j
-                # cos_distances.append(
-                #     1
-                #     - np.dot(avg_counts_goi, avg_counts_j)
-                #     / (np.linalg.norm(avg_counts_goi) * np.linalg.norm(avg_counts_j))
-                # )
                 self.matrices[matrix_type][p_name] = self.matrices[
                     matrix_type
                 ].index.map(
@@ -547,8 +523,6 @@ class EnrichedKmersPipeline:
             self.matrices[matrix_type]["exclusivity"] = self.matrices[
                 matrix_type
             ].apply(portek.check_exclusivity, avg_cols=self.avg_cols, axis=1)
-
-        # avg_cos_dist = np.mean(cos_distances)
         self.enriched_groups = [
             name.split("_")[0]
             for name in self.matrices[matrix_type]["group"].value_counts().index
@@ -557,7 +531,6 @@ class EnrichedKmersPipeline:
         self.err_cols = err_cols
         self.p_cols = p_cols
 
-        # return avg_cos_dist
 
     def _load_rare_graphs(self, m):
         graph_in_path = pathlib.Path(f"{self.project_dir}/temp/").glob(
@@ -688,8 +661,8 @@ class EnrichedKmersPipeline:
             logp = f"-log10_{self.p_cols[i]}"
             fig, ax = plt.subplots()
             plt.axhline(y=-np.log10(0.01), color="black")
-            plt.axvline(x=self.min_rmse, color="black", linestyle="--")
-            plt.axvline(x=-self.min_rmse, color="black", linestyle="--")
+            plt.axvline(x=0.1, color="black", linestyle="--")
+            plt.axvline(x=-0.1, color="black", linestyle="--")
             ax.autoscale()
             ax.set_title(f"{group1} vs {group2} volcano plot")
             ax.set_xlabel("Average kmer count change")
@@ -716,7 +689,7 @@ class EnrichedKmersPipeline:
                 (
                     (self.matrices["common"]["group"] != "not_significant")
                     & (self.matrices["common"]["group"] != "group_dependent")
-                    & (self.matrices["common"]["RMSE"] > self.min_rmse)
+                    & (self.matrices["common"]["RMSE"] > 0.1)
                 )
                 | (self.matrices["common"]["group"] == "conserved")
             ]
@@ -727,7 +700,7 @@ class EnrichedKmersPipeline:
                         (
                             (self.matrices["common"]["group"] != "not_significant")
                             & (self.matrices["common"]["group"] != "group_dependent")
-                            & (self.matrices["common"]["RMSE"] > self.min_rmse)
+                            & (self.matrices["common"]["RMSE"] > 0.1)
                         )
                         | (self.matrices["common"]["group"] == "conserved")
                     ],
@@ -741,7 +714,7 @@ class EnrichedKmersPipeline:
                                 self.matrices["rare_similar"]["group"]
                                 != "group_dependent"
                             )
-                            & (self.matrices["rare_similar"]["RMSE"] > self.min_rmse)
+                            & (self.matrices["rare_similar"]["RMSE"] > 0.1)
                         )
                         | (self.matrices["common"]["group"] == "conserved")
                     ],
@@ -764,6 +737,8 @@ class EnrichedKmersPipeline:
                 print(f"{group_numbers.loc[group]} {group} {self.k}-mers")
             return True
 
+
+    # deprecated
     def get_counts_for_classifier(self, verbose):
         enriched_kmers = (
             self.matrices["enriched"]
@@ -810,6 +785,7 @@ class EnrichedKmersPipeline:
             index_label="sample_name",
         )
 
+
     def plot_PCA(self):
         print(f"\nPlotting and saving PCA plot of enriched {self.k}-mers.")
         pca = decomposition.PCA(2)
@@ -828,6 +804,7 @@ class EnrichedKmersPipeline:
             bbox_inches="tight",
         )
 
+
     def save_counts_for_classifier(self):
         print(f"\nSaving {self.k}-mer counts for classification.")
         counts_for_classifier = (
@@ -843,6 +820,7 @@ class EnrichedKmersPipeline:
             f"{self.project_dir}/output/{self.k}mer_counts_for_classifier.csv",
             index_label="sample_name",
         )
+
 
     def save_matrix(self, matrix_type: str, full: bool = False):
         print(f"\nSaving {matrix_type} {self.k}-mers matrix.")
