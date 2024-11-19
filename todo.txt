@@ -1,6 +1,5 @@
 mapping in one module - portek_map
 classification in one modeule - portek_classify
 add enriched/conserved/variable genome regions plots
-clean up prints and add optional verbosity
+clean up prints
 documentation
-IMPLEMENT REVIEWS
