@@ -74,7 +74,7 @@ class KmerFinder:
 
                 if "/" in seq.id:
                     raise ValueError(
-                        "Sequence ids cannot contain '/'. If using data from GISAID please use '--header_format gisaid' option."
+                        "Sequence ids cannot contain '/'. Specify correct header formats in the config file."
                     )
                 seq.seq = seq.seq.upper()
 
@@ -325,7 +325,7 @@ class FindOptimalKPipeline:
                     * np.log2(1 - all_kmer_stat_matrix["F"])
                 ),
             )
-        min_F = 2/tot_samples
+        min_F = 2 / tot_samples
         min_H = -(min_F * np.log2(min_F) + (1 - min_F) * np.log2(1 - min_F))
         tot_kmer = len(all_kmer_stat_matrix)
         all_kmer_stat_matrix = all_kmer_stat_matrix.loc[
@@ -350,7 +350,7 @@ class FindOptimalKPipeline:
                 all_kmer_stat_matrix.loc[kmer, "unique"] = 1
         unique_kmer = len(all_kmer_stat_matrix.loc[all_kmer_stat_matrix["unique"] == 1])
 
-        spec = unique_kmer/sig_kmer
+        spec = unique_kmer / sig_kmer
         dt = process_time() - start_time
         mem = float(f"{np.mean(all_kmer_stat_matrix['H']):.2g}")
 
@@ -378,7 +378,7 @@ class FindOptimalKPipeline:
             if result != None:
                 if result[4] >= 100:
                     result_df.loc[result[0], "mem"] = result[2]
-                    result_df.loc[result[0], "spec"] = round(result[1]*100)
+                    result_df.loc[result[0], "spec"] = round(result[1] * 100)
                     result_df.loc[result[0], "dt"] = result[3]
                 else:
                     result_df = result_df.drop(labels=[result[0]])
@@ -391,22 +391,18 @@ class FindOptimalKPipeline:
                 result_df.loc[k, "dt"] += time
         result_df["dt"] = result_df["dt"].round(3)
 
-        result_df["spec_rank"] = result_df["spec"].rank(method='max')
-        result_df["mem_rank"] = result_df["mem"].rank(method='max')
-        result_df["dt_rank"] = result_df["dt"].rank(method='max')
+        result_df["spec_rank"] = result_df["spec"].rank(method="max")
+        result_df["mem_rank"] = result_df["mem"].rank(method="max")
+        result_df["dt_rank"] = result_df["dt"].rank(method="max")
         result_df["score"] = (
-            result_df["spec_rank"]
-            + result_df["mem_rank"]
-            - result_df["dt_rank"]
+            result_df["spec_rank"] + result_df["mem_rank"] - result_df["dt_rank"]
         )
         result_df = result_df.sort_values("score", ascending=False)
 
         with open(
             f"{self.project_dir}/output/k_selection_results.txt", mode="w"
         ) as out_file:
-            out_file.write(
-                f"\nHere are the results of optimal k selection:\n"
-            )
+            out_file.write(f"\nHere are the results of optimal k selection:\n")
             for k in result_df.index:
                 out_file.write(
                     f"\nk: {k}, Unique kmers: {result_df.loc[k,'spec']}% ({result_df.loc[k,'spec_rank']}), average k-mer entropy: {result_df.loc[k,'mem']} ({result_df.loc[k,'mem_rank']}), CPU time {result_df.loc[k,'dt']} s ({result_df.loc[k,'dt_rank']}), score {result_df.loc[k,'score']}."
@@ -414,7 +410,7 @@ class FindOptimalKPipeline:
             best_k = result_df.idxmax()["score"]
             out_file.write(
                 f"\n\nPORT-EK thinks k value of {best_k} is the best for your data!"
-                f"\nIt has the {portek.make_ordinal(1+len(result_df)-result_df.loc[best_k, 'spec_rank'])} highest percentage of unique k-mers, {portek.make_ordinal(1+len(result_df)-result_df.loc[best_k, 'mem_rank'])} highest average entorpy and is {portek.make_ordinal(result_df.loc[best_k, 'mem_rank'])} most efficient by CPU time, respectively."
+                f"\nIt has the {portek.make_ordinal(1+len(result_df)-result_df.loc[best_k, 'spec_rank'])} highest percentage of unique k-mers, {portek.make_ordinal(1+len(result_df)-result_df.loc[best_k, 'mem_rank'])} highest average entorpy and is {portek.make_ordinal(result_df.loc[best_k, 'dt_rank'])} most efficient by CPU time, respectively."
             )
         with open(
             f"{self.project_dir}/output/k_selection_results.txt", mode="r"
