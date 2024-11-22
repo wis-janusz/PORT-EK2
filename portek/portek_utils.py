@@ -9,7 +9,6 @@ from scipy.spatial import distance
 from scipy.cluster import hierarchy
 
 
-
 def encode_kmer(kmer_seq: str) -> int:
     encoding_dict = {"A": "00", "C": "01", "G": "10", "T": "11"}
     kmer_bin_string = [encoding_dict[nuc] for nuc in kmer_seq]
@@ -39,7 +38,9 @@ def calc_kmer_pvalue(kmer: str, first_group, sec_group, matrix: pd.DataFrame):
     return test_result.pvalue
 
 
-def assign_kmer_group_ava(row: pd.Series, p_cols: list, avg_cols: list, freq_cols: list, err_cols:list):
+def assign_kmer_group_ava(
+    row: pd.Series, p_cols: list, avg_cols: list, freq_cols: list, err_cols: list
+):
     max_group = row[avg_cols].idxmax()
     max_group = max_group.split("_")[0]
     rel_p_cols = [col for col in p_cols if max_group in col]
@@ -50,7 +51,10 @@ def assign_kmer_group_ava(row: pd.Series, p_cols: list, avg_cols: list, freq_col
     else:
         return "not_significant"
 
-def assign_kmer_group_ovr(row: pd.Series, goi:str, p_cols: list, err_cols: list, freq_cols: list):
+
+def assign_kmer_group_ovr(
+    row: pd.Series, goi: str, p_cols: list, err_cols: list, freq_cols: list
+):
     if all(row[freq_cols] > 0.9) and all(abs(row[err_cols]) < 0.1):
         return "conserved"
     elif all(row[p_cols] < 0.01) and all(row[err_cols] > 0):
@@ -62,6 +66,7 @@ def assign_kmer_group_ovr(row: pd.Series, goi:str, p_cols: list, err_cols: list,
 
     else:
         return "not_significant"
+
 
 def check_exclusivity(row: pd.Series, avg_cols: list) -> str:
     if len([col for col in avg_cols if row[col] > 0]) == 1:
@@ -78,7 +83,7 @@ def build_similarity_graph_two_list(
     similarity_edges = set()
     i = 1
     t0 = datetime.now()
-    
+
     for query_kmer in query_list:
         similarity_edges.add((query_kmer, query_kmer))
         for target_kmer in target_list:
@@ -98,7 +103,7 @@ def build_similarity_graph_two_list(
     silmilarity_graph = nx.Graph(similarity_edges)
     return name, silmilarity_graph
 
-
+#Deprecated
 def calc_agg_freq(kmer_list, sample_list, source_df):
     pos_samples = set()
     for sample in sample_list:
@@ -157,13 +162,69 @@ def map_kmers_find_mutations(kmer, ref_seq_str, pos_matrix, n=2, l=1000, find_wt
     return alignment, mutations
 
 
-def cluster_kmer_counts(matrix):
+def assemble_kmers_debruijn(kmers: list) -> nx.MultiDiGraph:
+    de_bruijn = nx.MultiDiGraph()
+    for kmer in kmers:
+        kmerL = kmer[:-1]
+        kmerR = kmer[1:]
+        de_bruijn.add_node(kmerL)
+        de_bruijn.add_node(kmerR)
+        de_bruijn.add_edge(kmerL, kmerR, sequence=kmer)
+    return de_bruijn
+
+
+def assemble_contig(contig_graph: nx.MultiDiGraph) -> str:
+    kmers = []
+    if contig_graph.number_of_edges() == 1:
+        path = nx.eulerian_path(contig_graph, keys=True)
+        for edge in path:
+            sequence = "".join([edge[0], edge[1][-1:]])
+            kmers.append(nx.get_edge_attributes(contig_graph, "sequence")[edge])
+    else:
+        path = nx.eulerian_path(contig_graph, keys=True)
+        first = True
+        for edge in path:
+            if first == True:
+                sequence = "".join([edge[0][:1], edge[1]])
+                first = False
+            else:
+                sequence = "".join([sequence, edge[1][-1:]])
+            kmers.append(nx.get_edge_attributes(contig_graph, "sequence")[edge])
+    return sequence, kmers
+
+
+def cluster_kmers(matrix: pd.DataFrame):
     distances = distance.pdist(matrix)
     linkage = hierarchy.linkage(distances)
     clustering = hierarchy.fcluster(linkage, 0, criterion="distance")
-    matrix["cluster"] = clustering
+    clustering = pd.Series(clustering, index=matrix.index, name="freq_cluster")
+    freq_clusters = {cluster_no: [] for cluster_no in clustering.unique()}
+    for cluster_no in freq_clusters.keys():
+        freq_clusters[cluster_no] = clustering.loc[clustering == cluster_no].index.to_list()
+    cluster_graphs = {}
+    for cluster, kmers in freq_clusters.items():
+        cluster_graphs[cluster] = assemble_kmers_debruijn(kmers)
+    contigs_kmer_dict = {}
+    kmer_contig_dict = {}
+    for cluster, graph in cluster_graphs.items():
+        components = [
+            graph.subgraph(component).copy()
+            for component in nx.weakly_connected_components(graph)
+        ]
+        for component in components:
+            if nx.is_directed_acyclic_graph(component):
+                if nx.has_eulerian_path(component):
+                    sequence, kmer_list = assemble_contig(component)
+                    contigs_kmer_dict[sequence] = kmer_list
+                    for kmer in kmer_list:
+                        kmer_contig_dict[kmer] = sequence
+                else:
+                    print(f"Ambiguous assembly in cluster {cluster}")
+            else:
+                print(f"Ambiguous assembly in cluster {cluster}")
+    return kmer_contig_dict, contigs_kmer_dict
 
-
+#deprecated
 def assemble_kmers(
     kmer_list: list, how: str = "pos", kmer_df: pd.DataFrame = None
 ) -> nx.DiGraph:
@@ -196,7 +257,7 @@ def assemble_kmers(
     kmer_graph = nx.from_edgelist(edge_tuples, create_using=nx.DiGraph)
     return kmer_graph
 
-
+#deprecated
 def plot_segments(segment_df, ref_seq, colormap=colormaps["coolwarm"]):
     plot_df = segment_df[["ref_start", "ref_end", "group"]].sort_values("ref_start")
     groups_values = ["ref"] + np.unique(plot_df["group"]).tolist()
@@ -229,7 +290,7 @@ def plot_segments(segment_df, ref_seq, colormap=colormaps["coolwarm"]):
     pyplot.legend(handles=legends).set_loc("right")
     pyplot.show()
 
-
+#deprecated
 def _draw_genome_overlay_plot(
     segment_coords: list,
     segment_colors: list,
@@ -237,7 +298,7 @@ def _draw_genome_overlay_plot(
     title: str = None,
     colormap: colors.LinearSegmentedColormap = colormaps["coolwarm"],
     save_path: str = None,
-    save_format: str = "svg"
+    save_format: str = "svg",
 ):
     groups_values = ["ref"] + sorted(list(set(segment_colors)))
     colors = [colormap(i) for i in np.linspace(0, 1, len(groups_values))]
@@ -262,21 +323,21 @@ def _draw_genome_overlay_plot(
         pyplot.savefig(save_path, format=save_format, dpi=600, bbox_inches="tight")
     pyplot.show()
 
-
+#deprecated
 def plot_kmers_by_genome(
-    kmers_and_genomes:list,
-    kmer_matrix:pd.DataFrame,
-    group_sample_id:dict,
-    ref_seq:str,
+    kmers_and_genomes: list,
+    kmer_matrix: pd.DataFrame,
+    group_sample_id: dict,
+    ref_seq: str,
     title: str = None,
     colormap: colors.LinearSegmentedColormap = colormaps["coolwarm"],
     save_path: str = None,
-    save_format: str = "svg"
+    save_format: str = "svg",
 ):
     segment_coords = []
     segment_colors = []
     y = 1
-    for kmers,samples in kmers_and_genomes:
+    for kmers, samples in kmers_and_genomes:
         samples_to_plot = samples
         kmers_to_plot = kmers
         for sample_name in samples_to_plot:
@@ -288,11 +349,16 @@ def plot_kmers_by_genome(
                     temp_segments = kmer_matrix.loc[kmer, "ref_pos"]
                     temp_segments = [((x1, y), (x2, y)) for x1, x2 in temp_segments]
                     segment_coords.extend(temp_segments)
-                    segment_colors.extend([sample_group for _ in range(len(temp_segments))])
+                    segment_colors.extend(
+                        [sample_group for _ in range(len(temp_segments))]
+                    )
             y += 1
-            
-    _draw_genome_overlay_plot(segment_coords, segment_colors,ref_seq, title, colormap, save_path, save_format)
 
+    _draw_genome_overlay_plot(
+        segment_coords, segment_colors, ref_seq, title, colormap, save_path, save_format
+    )
+
+#deprecated
 def assign_gene_from_interval(ref_pos: list, gene_dict: dict) -> str:
     genes = []
     for start, end in ref_pos:
@@ -310,6 +376,7 @@ def assign_gene_from_interval(ref_pos: list, gene_dict: dict) -> str:
                 ):
                     genes.append(gene)
 
+#deprecated
 def assign_gene_from_position(ref_pos: int, gene_dict: dict) -> str:
     genes = []
     for gene, gene_ranges in gene_dict.items():
@@ -318,19 +385,19 @@ def assign_gene_from_position(ref_pos: int, gene_dict: dict) -> str:
                 genes.append(gene)
     return ", ".join(genes)
 
+
 def make_ordinal(n):
-    '''
+    """
     Convert an integer into its ordinal representation::
 
         make_ordinal(0)   => '0th'
         make_ordinal(3)   => '3rd'
         make_ordinal(122) => '122nd'
         make_ordinal(213) => '213th'
-    '''
+    """
     n = int(n)
     if 11 <= (n % 100) <= 13:
-        suffix = 'th'
+        suffix = "th"
     else:
-        suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
+        suffix = ["th", "st", "nd", "rd", "th"][min(n % 10, 4)]
     return str(n) + suffix
-
