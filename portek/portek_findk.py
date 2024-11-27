@@ -350,7 +350,10 @@ class FindOptimalKPipeline:
                 all_kmer_stat_matrix.loc[kmer, "unique"] = 1
         unique_kmer = len(all_kmer_stat_matrix.loc[all_kmer_stat_matrix["unique"] == 1])
 
-        spec = unique_kmer / sig_kmer
+        try:
+            spec = unique_kmer / sig_kmer
+        except(ZeroDivisionError):
+            spec = 0
         dt = process_time() - start_time
         mem = float(f"{np.mean(all_kmer_stat_matrix['H']):.2g}")
 
