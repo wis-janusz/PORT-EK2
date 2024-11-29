@@ -685,6 +685,7 @@ class EnrichedKmersPipeline:
                 s=10,
                 linewidth=0,
                 hue="group",
+                alpha=0.5
             )
             plt.savefig(
                 f"{self.project_dir}/output/{err}_{matrix_type}_{self.k}mers_volcano.svg",
