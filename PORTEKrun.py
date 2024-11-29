@@ -58,10 +58,10 @@ def _new_project(project_dir: str) -> None:
         raise FileExistsError(
             "This project directory already exists! PORT-EK does not allow overwriting projects. If you REALLY want to overwrite, remove the existing directory manually!"
         )
-    os.mkdir(project_dir)
-    os.mkdir(f"{project_dir}/input")
-    os.mkdir(f"{project_dir}/output")
-    os.mkdir(f"{project_dir}/temp")
+    os.makedirs(project_dir)
+    os.makedirs(f"{project_dir}/input")
+    os.makedirs(f"{project_dir}/output")
+    os.makedirs(f"{project_dir}/temp")
     shutil.copy2("./templates/config.yaml", project_dir)
     print(
         f"New empty PORT-EK project created in {project_dir}. Please edit config.yaml as required and copy input fasta files into {project_dir}/input."
