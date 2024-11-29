@@ -77,7 +77,7 @@ def check_exclusivity(row: pd.Series, avg_cols: list) -> str:
     else:
         return "non-exclusive"
 
-
+#Deprecated
 def build_similarity_graph_two_list(
     name, query_list, target_list, mismatch_treshold: int
 ) -> nx.Graph:

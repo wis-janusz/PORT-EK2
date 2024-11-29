@@ -167,12 +167,12 @@ class EnrichedKmersPipeline:
         print(
             f"{non_singles} {self.k}-mers passed the entropy filter."
         )
-        if non_singles * len(sample_list) > 16*(2**30):
+        if non_singles * len(sample_list) > 8*(2**30):
             common_kmer_matrix = common_kmer_matrix[
                 (common_kmer_matrix[self.freq_cols] > 0.1).product(axis=1).astype(bool)
             ]
             print(
-                f"The resulting count matrix would take over 16GB of space. Removing additional {non_singles-len(common_kmer_matrix)} rare {self.k}-mers."
+                f"The resulting count matrix would take over 8GB of space. Removing additional {non_singles-len(common_kmer_matrix)} rare {self.k}-mers."
             )
             print(f"{len(common_kmer_matrix)} {self.k}-mers remaining.")
         print(common_kmer_matrix["H"].mean())
