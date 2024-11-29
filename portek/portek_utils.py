@@ -47,7 +47,7 @@ def assign_kmer_group_ava(
     max_group = row[avg_cols].idxmax()
     max_group = max_group.split("_")[0]
     rel_p_cols = [col for col in p_cols if max_group in col]
-    if all(row[freq_cols] > 0.9):
+    if all(row[freq_cols] > 0.9) and all(abs(row[err_cols] < 0.1)):
         return "conserved"
     elif all(row[rel_p_cols] < 0.01):
         return f"{max_group}_enriched"
@@ -58,7 +58,7 @@ def assign_kmer_group_ava(
 def assign_kmer_group_ovr(
     row: pd.Series, goi: str, p_cols: list, err_cols: list, freq_cols: list
 ):
-    if all(row[freq_cols] > 0.9):
+    if all(row[freq_cols] > 0.9) and all(abs(row[err_cols] < 0.1)):
         return "conserved"
     elif all(row[p_cols] < 0.01) and all(row[err_cols] > 0):
         return f"{goi}_enriched"
