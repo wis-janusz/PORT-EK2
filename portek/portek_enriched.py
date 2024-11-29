@@ -491,8 +491,6 @@ class EnrichedKmersPipeline:
             ].apply(portek.check_exclusivity, avg_cols=self.avg_cols, axis=1)
 
         elif self.mode == "ovr":
-            print(self.goi)
-            print(self.control_groups)
             err_cols = []
             p_cols = []
             for group in self.control_groups:
