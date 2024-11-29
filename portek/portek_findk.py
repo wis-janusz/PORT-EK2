@@ -393,14 +393,9 @@ class FindOptimalKPipeline:
             if k in result_df.index:
                 result_df.loc[k, "dt"] += time
         result_df["dt"] = result_df["dt"].round(3)
-
-        result_df["spec_rank"] = result_df["spec"].rank(method="max")
-        result_df["mem_rank"] = result_df["mem"].rank(method="max")
-        result_df["dt_rank"] = result_df["dt"].rank(method="max")
-        result_df["score"] = (
-            result_df["spec_rank"] + result_df["mem_rank"] - result_df["dt_rank"]
-        )
-        result_df = result_df.sort_values("score", ascending=False)
+        result_df.sort_index(inplace=True)
+        result_df["diff"] = result_df["spec"].diff(periods=-1)
+        print(result_df["diff"])
 
         with open(
             f"{self.project_dir}/output/k_selection_results.txt", mode="w"
@@ -408,12 +403,11 @@ class FindOptimalKPipeline:
             out_file.write(f"\nHere are the results of optimal k selection:\n")
             for k in result_df.index:
                 out_file.write(
-                    f"\nk: {k}, Unique kmers: {result_df.loc[k,'spec']}% ({result_df.loc[k,'spec_rank']}), average k-mer entropy: {result_df.loc[k,'mem']} ({result_df.loc[k,'mem_rank']}), CPU time {result_df.loc[k,'dt']} s ({result_df.loc[k,'dt_rank']}), score {result_df.loc[k,'score']}."
+                    f"\nk: {k}, Unique kmers: {result_df.loc[k,'spec']}%, average k-mer entropy: {result_df.loc[k,'mem']}, CPU time {result_df.loc[k,'dt']} s."
                 )
-            best_k = result_df.idxmax()["score"]
+            best_k = result_df.idxmax()["diff"]
             out_file.write(
                 f"\n\nPORT-EK thinks k value of {best_k} is the best for your data!"
-                f"\nIt has the {portek.make_ordinal(1+len(result_df)-result_df.loc[best_k, 'spec_rank'])} highest percentage of unique k-mers, {portek.make_ordinal(1+len(result_df)-result_df.loc[best_k, 'mem_rank'])} highest average entorpy and is {portek.make_ordinal(result_df.loc[best_k, 'dt_rank'])} most efficient by CPU time, respectively."
             )
         with open(
             f"{self.project_dir}/output/k_selection_results.txt", mode="r"
