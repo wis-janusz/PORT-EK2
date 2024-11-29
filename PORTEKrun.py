@@ -1,7 +1,6 @@
 import argparse
 import os
 import shutil
-import resource
 from datetime import datetime
 
 import portek

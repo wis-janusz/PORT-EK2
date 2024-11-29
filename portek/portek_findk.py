@@ -2,9 +2,7 @@ import os
 import pathlib
 import yaml
 import pickle
-import itertools
 import multiprocessing
-import warnings
 import numpy as np
 import pandas as pd
 
@@ -16,7 +14,6 @@ from collections import defaultdict
 from time import process_time
 from Bio import SeqIO
 
-import portek
 
 
 class KmerFinder:
@@ -395,7 +392,6 @@ class FindOptimalKPipeline:
         result_df["dt"] = result_df["dt"].round(3)
         result_df.sort_index(inplace=True)
         result_df["diff"] = result_df["spec"].diff(periods=-1)
-        print(result_df["diff"])
 
         with open(
             f"{self.project_dir}/output/k_selection_results.txt", mode="w"
