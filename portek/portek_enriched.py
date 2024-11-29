@@ -8,7 +8,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
-from sklearn import preprocessing, decomposition
+from sklearn import decomposition
+from Bio import SeqRecord, SeqIO, Seq
 
 import portek
 
@@ -160,9 +161,21 @@ class EnrichedKmersPipeline:
         min_F = 2 / tot_samples
         min_H = -(min_F * np.log2(min_F) + (1 - min_F) * np.log2(1 - min_F))
         common_kmer_matrix = all_kmer_matrix.loc[
-            (all_kmer_matrix["H"] >= min_H) | (all_kmer_matrix["F"] >= 1 - min_F)
+            (all_kmer_matrix["H"] >= min_H) | (all_kmer_matrix["F"] >= (1 - min_F))
         ]
-
+        non_singles = len(common_kmer_matrix)
+        print(
+            f"{non_singles} {self.k}-mers passed the entropy filter."
+        )
+        if non_singles * len(sample_list) > 16*(2**30):
+            common_kmer_matrix = common_kmer_matrix[
+                (common_kmer_matrix[self.freq_cols] > 0.1).product(axis=1).astype(bool)
+            ]
+            print(
+                f"The resulting count matrix would take over 16GB of space. Removing additional {non_singles-len(common_kmer_matrix)} rare {self.k}-mers."
+            )
+            print(f"{len(common_kmer_matrix)} {self.k}-mers remaining.")
+        print(common_kmer_matrix["H"].mean())
         self.matrices["common"] = common_kmer_matrix
         if save_rare == True:
             rare_kmer_matrix = all_kmer_matrix.loc[
@@ -171,10 +184,6 @@ class EnrichedKmersPipeline:
                 ]
             ]
             self.matrices["rare"] = rare_kmer_matrix
-
-        print(
-            f"{len(common_kmer_matrix)} k-mers pass entropy filter at H min of {min_H}"
-        )
 
     # deprecated
     def get_kmers(self, save_rare: bool = False, verbose: bool = False):
@@ -430,7 +439,6 @@ class EnrichedKmersPipeline:
                     flush=True,
                 )
                 counter += 1
-
         print(f"\nIdentifying enriched {self.k}-mers.")
         if self.mode == "ava":
             err_cols = []
@@ -456,6 +464,8 @@ class EnrichedKmersPipeline:
                             self.sample_group_dict[self.sample_groups[i]],
                             self.sample_group_dict[self.sample_groups[j]],
                             self.matrices[matrix_type],
+                            self.freq_cols,
+                            err_cols,
                         )
                     )
                     with np.errstate(divide="ignore"):
@@ -501,6 +511,8 @@ class EnrichedKmersPipeline:
                         self.sample_group_dict[self.goi],
                         self.sample_group_dict[group],
                         self.matrices[matrix_type],
+                        self.freq_cols,
+                        err_cols,
                     )
                 )
                 self.matrices[matrix_type][f"-log10_{p_name}"] = -np.log10(
@@ -531,7 +543,7 @@ class EnrichedKmersPipeline:
         self.err_cols = err_cols
         self.p_cols = p_cols
 
-
+#deprecated
     def _load_rare_graphs(self, m):
         graph_in_path = pathlib.Path(f"{self.project_dir}/temp/").glob(
             f"*_{m}_rare_graph.pkl"
@@ -551,14 +563,14 @@ class EnrichedKmersPipeline:
                 return None
 
         return graphs
-
+#deprecated
     def _save_rare_graphs(self, graphs: dict, m):
         for name, graph in graphs.items():
             with open(
                 f"{self.project_dir}/temp/{name}_{m}_rare_graph.pkl", mode="wb"
             ) as out_file:
                 pickle.dump(graph, out_file)
-
+#deprecated
     def reexamine_rare(self, m, n_jobs, verbose: bool = False):
         if type(m) != int or m > self.k or m < 1:
             raise ValueError(
@@ -737,7 +749,6 @@ class EnrichedKmersPipeline:
                 print(f"{group_numbers.loc[group]} {group} {self.k}-mers")
             return True
 
-
     # deprecated
     def get_counts_for_classifier(self, verbose):
         enriched_kmers = (
@@ -785,7 +796,6 @@ class EnrichedKmersPipeline:
             index_label="sample_name",
         )
 
-
     def plot_PCA(self):
         print(f"\nPlotting and saving PCA plot of enriched {self.k}-mers.")
         pca = decomposition.PCA(2)
@@ -804,13 +814,15 @@ class EnrichedKmersPipeline:
             bbox_inches="tight",
         )
 
-
     def save_counts_for_classifier(self):
         print(f"\nSaving {self.k}-mer counts for classification.")
         counts_for_classifier = (
             self.matrices["enriched"]
             .loc[self.matrices["enriched"]["group"] != "conserved", self.sample_list]
             .T
+        )
+        counts_for_classifier.columns = counts_for_classifier.columns.map(
+            lambda id: portek.decode_kmer(id, self.k)
         )
         counts_for_classifier["sample_group"] = counts_for_classifier.index.map(
             lambda name: name.split("_")[0]
@@ -821,9 +833,11 @@ class EnrichedKmersPipeline:
             index_label="sample_name",
         )
 
-
     def save_matrix(self, matrix_type: str, full: bool = False):
         print(f"\nSaving {matrix_type} {self.k}-mers matrix.")
+        self.matrices[matrix_type].index = self.matrices[matrix_type].index.map(
+            lambda id: portek.decode_kmer(id, self.k)
+        )
         if full == True:
             out_filename = f"{self.project_dir}/output/{matrix_type}_{self.k}mers.csv"
             self.matrices[matrix_type].to_csv(out_filename, index_label="kmer")
@@ -834,3 +848,20 @@ class EnrichedKmersPipeline:
             self.matrices[matrix_type].drop(self.sample_list, axis=1).to_csv(
                 out_filename, index_label="kmer"
             )
+
+    def save_kmers_fasta(self, matrix_type: str):
+        kmers = self.matrices[matrix_type].index
+        out_fasta_list = []
+        for kmer in kmers:
+            out_fasta_list.append(
+                SeqRecord.SeqRecord(
+                    seq=Seq.Seq(kmer),
+                    id=f"{self.matrices[matrix_type].loc[kmer, 'group']}_{kmer}",
+                    description="",
+                )
+            )
+        SeqIO.write(
+            out_fasta_list,
+            f"{self.project_dir}/temp/{matrix_type}_{self.k}mers.fasta",
+            format="fasta",
+        )

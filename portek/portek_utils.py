@@ -31,7 +31,10 @@ def filter_kmers(kmer_df: pd.DataFrame, freq_cols: list, cons_thr=0.01) -> pd.Da
     return out_kmer_df
 
 
-def calc_kmer_pvalue(kmer: str, first_group, sec_group, matrix: pd.DataFrame):
+def calc_kmer_pvalue(kmer: str, first_group, sec_group, matrix: pd.DataFrame, freq_cols, err_cols):
+    # if all(matrix.loc[kmer, freq_cols] > 0.9) and all(abs(matrix.loc[kmer, err_cols]) < 0.1):
+    #     return 1
+    # else:
     first_obs = matrix.loc[kmer, first_group]
     sec_obs = matrix.loc[kmer, sec_group]
     test_result = stats.mannwhitneyu(first_obs, sec_obs)
@@ -44,7 +47,7 @@ def assign_kmer_group_ava(
     max_group = row[avg_cols].idxmax()
     max_group = max_group.split("_")[0]
     rel_p_cols = [col for col in p_cols if max_group in col]
-    if all(row[freq_cols] > 0.9) and all(abs(row[err_cols]) < 0.1):
+    if all(row[freq_cols] > 0.9):
         return "conserved"
     elif all(row[rel_p_cols] < 0.01):
         return f"{max_group}_enriched"
@@ -55,7 +58,7 @@ def assign_kmer_group_ava(
 def assign_kmer_group_ovr(
     row: pd.Series, goi: str, p_cols: list, err_cols: list, freq_cols: list
 ):
-    if all(row[freq_cols] > 0.9) and all(abs(row[err_cols]) < 0.1):
+    if all(row[freq_cols] > 0.9):
         return "conserved"
     elif all(row[p_cols] < 0.01) and all(row[err_cols] > 0):
         return f"{goi}_enriched"
@@ -193,10 +196,10 @@ def assemble_contig(contig_graph: nx.MultiDiGraph) -> str:
     return sequence, kmers
 
 
-def cluster_kmers(matrix: pd.DataFrame):
+def cluster_kmers(matrix: pd.DataFrame, discard_singles:bool = False, max_d:float = 0):
     distances = distance.pdist(matrix)
     linkage = hierarchy.linkage(distances)
-    clustering = hierarchy.fcluster(linkage, 0, criterion="distance")
+    clustering = hierarchy.fcluster(linkage, max_d, criterion="distance")
     clustering = pd.Series(clustering, index=matrix.index, name="freq_cluster")
     freq_clusters = {cluster_no: [] for cluster_no in clustering.unique()}
     for cluster_no in freq_clusters.keys():
@@ -214,6 +217,9 @@ def cluster_kmers(matrix: pd.DataFrame):
         for component in components:
             if nx.is_directed_acyclic_graph(component):
                 if nx.has_eulerian_path(component):
+                    if discard_singles == True:
+                        if component.number_of_edges() == 1:
+                            continue
                     sequence, kmer_list = assemble_contig(component)
                     contigs_kmer_dict[sequence] = kmer_list
                     for kmer in kmer_list:

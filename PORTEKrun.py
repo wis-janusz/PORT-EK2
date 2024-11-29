@@ -32,12 +32,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--rare_m",
-    help="Allowed mismatches when re-examining rare k-mers with PORT-ek enriched. Omit if not re-examining rare k-mers.",
-    type=int,
-)
-
-parser.add_argument(
     "--verbose",
     help="Recieve additional output from some PORT-EK tools",
     default=False,
@@ -116,29 +110,15 @@ def main():
     elif args.tool == "enriched":
         start_time = datetime.now()
         enriched_kmers_finder = portek.EnrichedKmersPipeline(args.project_dir, args.k)
-        if args.rare_m == None:
-            enriched_kmers_finder.get_basic_kmer_stats()
-            enriched_kmers_finder.calc_kmer_stats("common", verbose=args.verbose)
-            enriched_kmers_finder.plot_volcanos("common")
-            enriched_kmers_found = enriched_kmers_finder.get_enriched_kmers()
-            if enriched_kmers_found == True:
-                enriched_kmers_finder.save_counts_for_classifier()
-                enriched_kmers_finder.save_matrix("enriched")
-                enriched_kmers_finder.plot_PCA()
-        else:
-            enriched_kmers_finder.get_basic_kmer_stats(save_rare=True)
-            enriched_kmers_finder.calc_kmer_stats("common", verbose=args.verbose)
-            enriched_kmers_finder.reexamine_rare(
-                args.rare_m, n_jobs=args.n_jobs, verbose=args.verbose
-            )
-            enriched_kmers_finder.plot_volcanos("common")
-            enriched_kmers_finder.plot_volcanos("rare_similar")
-            enriched_kmers_found = enriched_kmers_finder.get_enriched_kmers()
-            if enriched_kmers_found == True:
-                enriched_kmers_finder.save_counts_for_classifier()
-                enriched_kmers_finder.save_matrix("enriched")
-                enriched_kmers_finder.plot_PCA()
-
+        enriched_kmers_finder.get_basic_kmer_stats()
+        enriched_kmers_finder.calc_kmer_stats("common", verbose=args.verbose)
+        enriched_kmers_finder.plot_volcanos("common")
+        enriched_kmers_found = enriched_kmers_finder.get_enriched_kmers()
+        if enriched_kmers_found == True:
+            enriched_kmers_finder.save_counts_for_classifier()
+            enriched_kmers_finder.save_matrix("enriched")
+            enriched_kmers_finder.save_kmers_fasta("enriched")
+            enriched_kmers_finder.plot_PCA()
         end_timeS_ARE_NOT_CANON = datetime.now()
         running_time = end_timeS_ARE_NOT_CANON - start_time
         print(f"\nTotal running time: {running_time}")
