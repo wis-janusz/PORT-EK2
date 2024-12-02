@@ -47,11 +47,6 @@ class EnrichedKmersPipeline:
                     "Unrecognized analysis mode, should by ava or ovr. Check your config file!"
                 )
 
-            self.ref_rec = config["ref_seq"]
-            if "ref_genes" in config.keys():
-                self.ref_genes = config["ref_genes"]
-            else:
-                self.ref_genes = None
             self.freq_cols = [f"{group}_freq" for group in self.sample_groups]
             self.avg_cols = [f"{group}_avg" for group in self.sample_groups]
             self.c_cols = [f"{group}_c" for group in self.sample_groups]
@@ -844,7 +839,9 @@ class EnrichedKmersPipeline:
             out_filename = (
                 f"{self.project_dir}/output/{matrix_type}_{self.k}mers_stats.csv"
             )
-            self.matrices[matrix_type].drop(self.sample_list, axis=1).to_csv(
+            print(self.matrices[matrix_type].columns)
+            export_cols = self.avg_cols+list(*zip(self.err_cols, self.p_cols))+['RMSE', "group","exclusivity"]
+            self.matrices[matrix_type].loc[:,export_cols].to_csv(
                 out_filename, index_label="kmer"
             )
 

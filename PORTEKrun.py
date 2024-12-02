@@ -123,7 +123,9 @@ def main():
         print(f"\nTotal running time: {running_time}")
 
     elif args.tool == "map":
-        pass
+        start_time = datetime.now()
+        mapping_pipeline = portek.MappingPipeline(args.project_dir, args.k)
+        mapping_pipeline.run_mapping()
 
     elif args.tool == "classify":
         pass
