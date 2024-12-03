@@ -4,7 +4,7 @@ from unittest import mock
 
 def test_KmerFinder_correct_dir(correct_project_dir, default_max_k):
     test_kmer_finder = portek.KmerFinder(correct_project_dir, default_max_k)
-    assert test_kmer_finder.project_dir == "test/testproject"
+    assert test_kmer_finder.project_dir == "test/testproject/"
     assert test_kmer_finder.maxk == 31
 
 
@@ -48,6 +48,6 @@ goi:
 @mock.patch("builtins.open", new_callable=mock.mock_open, read_data=correct_config_ava)
 def test_KmerFinder_correct_config_ava(mock_config, correct_project_dir, default_max_k):
     test_kmer_finder = portek.KmerFinder(correct_project_dir, default_max_k)
-    assert test_kmer_finder.project_dir == "test/testproject"
+    assert test_kmer_finder.project_dir == "test/testproject/"
     assert test_kmer_finder.maxk == 31
     assert test_kmer_finder.sample_groups == ["A", "B", "C"]
