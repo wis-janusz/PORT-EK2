@@ -392,7 +392,10 @@ class FindOptimalKPipeline:
         result_df["dt"] = result_df["dt"].round(3)
         result_df.sort_index(inplace=True)
         result_df["diff"] = result_df["spec"].diff(periods=-1)
-
+        if len(result_df) == 0:
+            print("\nNo value of k resulted in more than 100 k-mers passing the entropy filter!")
+            print("The data set is likely too small, too diverse, or too conserved.")
+            return None
         with open(
             f"{self.project_dir}/output/k_selection_results.txt", mode="w"
         ) as out_file:

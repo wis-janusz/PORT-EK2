@@ -3,6 +3,7 @@ import pathlib
 import yaml
 import pickle
 import multiprocessing
+import itertools
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -170,7 +171,6 @@ class EnrichedKmersPipeline:
                 f"The resulting count matrix would take over 8GB of space. Removing additional {non_singles-len(common_kmer_matrix)} rare {self.k}-mers."
             )
             print(f"{len(common_kmer_matrix)} {self.k}-mers remaining.")
-        print(common_kmer_matrix["H"].mean())
         self.matrices["common"] = common_kmer_matrix
         if save_rare == True:
             rare_kmer_matrix = all_kmer_matrix.loc[
@@ -839,7 +839,7 @@ class EnrichedKmersPipeline:
             out_filename = (
                 f"{self.project_dir}/output/{matrix_type}_{self.k}mers_stats.csv"
             )
-            export_cols = self.avg_cols+list(*zip(self.err_cols, self.p_cols))+['RMSE', "group","exclusivity"]
+            export_cols = self.avg_cols+list(itertools.chain(*zip(self.err_cols, self.p_cols)))+['RMSE', "group","exclusivity"]
             self.matrices[matrix_type].loc[:,export_cols].to_csv(
                 out_filename, index_label="kmer"
             )
