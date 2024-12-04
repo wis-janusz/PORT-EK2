@@ -20,7 +20,7 @@ def test_KmerFinder_empty_dir(empty_project_dir, default_max_k):
 
 def test_KmerFinder_correct_k(correct_project_dir,correct_k):
     test_kmer_finder = portek.KmerFinder(correct_project_dir, correct_k)
-    assert test_kmer_finder.maxk == 21
+    assert test_kmer_finder.maxk == 15
 
 
 def test_KmerFinder_float_k(correct_project_dir,float_k):

@@ -31,7 +31,7 @@ def default_max_k():
 
 @pytest.fixture
 def correct_k():
-    return 21
+    return 15
 
 
 @pytest.fixture
@@ -55,4 +55,4 @@ def correct_bowtie_build_cmd():
 
 @pytest.fixture
 def correct_bowtie_map_cmd():
-    return "test/mock_bowtie2//bowtie2 -a --norc --no-hd -L 11 -x test/testproject//temp/ref_index/ref_seq -f test/testproject//temp/enriched_21mers.fasta -S test/testproject//temp/enriched_21mers.sam"
+    return "test/mock_bowtie2//bowtie2 -a --norc --no-hd -L 8 -x test/testproject//temp/ref_index/ref_seq -f test/testproject//temp/enriched_15mers.fasta -S test/testproject//temp/enriched_15mers.sam"

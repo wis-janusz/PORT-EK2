@@ -1,0 +1,14 @@
+
+Here are the results of optimal k selection:
+
+k: 15, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.018673645000000016 s.
+k: 17, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.018308112000000154 s.
+k: 19, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.01902459099999998 s.
+k: 21, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.02041386199999984 s.
+k: 23, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.021672861999999737 s.
+k: 25, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.02212674800000003 s.
+k: 27, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.022971480999999905 s.
+k: 29, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.024183910999999947 s.
+k: 31, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.03445074699999995 s.
+
+PORT-EK thinks k value of 15 is the best for your data!

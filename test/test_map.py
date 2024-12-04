@@ -44,3 +44,8 @@ def test_bowtie_map_correct(correct_project_dir, correct_k, correct_bowtie_map_c
         expected_string = correct_bowtie_map_cmd
         call_args = mock_subprocess.call_args
         assert expected_string == " ".join(*call_args[0])
+
+def test_read_sam(correct_project_dir, correct_k):
+    mapper = portek.MappingPipeline(correct_project_dir, correct_k)
+    mapper._read_sam_to_df()
+    assert False
