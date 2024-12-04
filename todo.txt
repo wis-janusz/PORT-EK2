@@ -3,3 +3,5 @@ classification in one modeule - portek_classify
 add enriched/conserved/variable genome regions plots
 clean up prints
 documentation
+tests
+clustering on unmapped k-mers, remapping?
