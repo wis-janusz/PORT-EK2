@@ -6,7 +6,6 @@ import math
 import pandas as pd
 from Bio import SeqIO
 
-
 class MappingPipeline:
 
     def __init__(self, project_dir: str, k):
@@ -72,46 +71,52 @@ class MappingPipeline:
         return os.path.exists(f"{self.bowtie2_path}/bowtie2")
 
     def _check_index_built(self):
-        index_files = list(pathlib.Path(f"{self.project_dir}/temp/ref_index/").glob(f"{self.ref_seq}.*"))
+        index_files = list(
+            pathlib.Path(f"{self.project_dir}/temp/ref_index/").glob(
+                f"{self.ref_seq}.*"
+            )
+        )
         if len(index_files) == 0:
             return False
         else:
             return True
 
-    def _bowtie_build_index(self, verbose):
+    def _bowtie_build_index(self, verbose: bool = False):
         if os.path.exists(f"{self.project_dir}/temp/ref_index/") == False:
             os.makedirs(f"{self.project_dir}/temp/ref_index")
         build_cmd = [
-                f"{self.bowtie2_path}/bowtie2-build",
-                "-f",
-                f"{self.project_dir}/input/{self.ref_seq}.fasta",
-                f"{self.project_dir}/temp/ref_index/{self.ref_seq}",
-            ]
+            f"{self.bowtie2_path}/bowtie2-build",
+            "-f",
+            f"{self.project_dir}/input/{self.ref_seq}.fasta",
+            f"{self.project_dir}/temp/ref_index/{self.ref_seq}",
+        ]
         result = subprocess.run(build_cmd, capture_output=True, text=True)
+        if verbose == True:
+            print(build_cmd)
         if result.returncode != 0:
             raise RuntimeError(result.stderr)
         else:
             if verbose == True:
                 print(result.stdout)
 
-
-    def _bowtie_map(self, verbose):
-        seed_length = int(math.ceil(self.k/2))
+    def _bowtie_map(self, verbose: bool = False):
+        seed_length = int(math.ceil(self.k / 2))
         map_cmd = [
-                f"{self.bowtie2_path}/bowtie2",
-                "-a",
-                "--norc",
-                "--no-hd",
-                "-L",
-                f"{seed_length}",
-                "-x",
-                f"{self.project_dir}/temp/ref_index/{self.ref_seq}",
-                "-f",
-                f"{self.project_dir}/temp/enriched_{self.k}mers.fasta",
-                "-S",
-                f"{self.project_dir}/temp/enriched_{self.k}mers.sam"
+            f"{self.bowtie2_path}/bowtie2",
+            "-a",
+            "--norc",
+            "--no-hd",
+            "-L",
+            f"{seed_length}",
+            "-x",
+            f"{self.project_dir}/temp/ref_index/{self.ref_seq}",
+            "-f",
+            f"{self.project_dir}/temp/enriched_{self.k}mers.fasta",
+            "-S",
+            f"{self.project_dir}/temp/enriched_{self.k}mers.sam",
         ]
-        print(" ".join(map_cmd))
+        if verbose == True:
+            print(" ".join(map_cmd))
         result = subprocess.run(map_cmd, capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(result.stderr)
@@ -119,17 +124,16 @@ class MappingPipeline:
             if verbose == True:
                 print(result.stdout)
 
-
-    def run_mapping(self, verbose:bool = False):
+    def run_mapping(self, verbose: bool = False):
         if self._check_bowtie2_path() == False:
             raise FileNotFoundError(
                 f"bowtie2 installation not found in {self.bowtie2_path}! Please install bowtie and input its path in portek_config.yaml."
             )
         if self._check_index_built() == False:
             self._bowtie_build_index(verbose)
-        
+
         self._bowtie_map(verbose)
 
-
-           
-        
+    def _read_sam_to_df(self, verbose: bool = False):
+        in_df = pd.read_csv(f"{self.project_dir}/temp/enriched_{self.k}mers.sam", index_col=0, sep="\t", header = None)
+        in_df = in_df.loc[:,[3,5,11,13]]
