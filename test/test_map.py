@@ -45,7 +45,21 @@ def test_bowtie_map_correct(correct_project_dir, correct_k, correct_bowtie_map_c
         call_args = mock_subprocess.call_args
         assert expected_string == " ".join(*call_args[0])
 
-def test_read_sam(correct_project_dir, correct_k):
+def test_read_sam_correct(correct_project_dir, correct_k):
     mapper = portek.MappingPipeline(correct_project_dir, correct_k)
-    mapper._read_sam_to_df()
-    assert False
+    mapping_df = mapper._read_sam_to_df()
+    assert mapping_df.to_numpy().shape == (64,3)
+    assert len(mapping_df.dtypes.unique()) == 2
+
+def test_parse_CIGAR(correct_project_dir, correct_k,CIGARS_to_parse, expected_CIGARS):
+    mapper = portek.MappingPipeline(correct_project_dir, correct_k)
+    parsed_CIGARS = []
+    for cigar in CIGARS_to_parse:
+        parsed_CIGARS.append(mapper._parse_CIGAR(cigar))
+    assert parsed_CIGARS == expected_CIGARS
+
+def test_analyze_mapping(correct_project_dir, correct_k):
+    mapper = portek.MappingPipeline(correct_project_dir, correct_k)
+    test_df = mapper.analyze_mapping()
+    assert test_df.to_numpy().shape == (63,4)
+    assert len(test_df.dtypes.unique()) == 2
