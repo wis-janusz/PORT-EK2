@@ -7,6 +7,7 @@ import regex
 import pandas as pd
 from Bio import SeqIO
 
+
 class MappingPipeline:
 
     def __init__(self, project_dir: str, k):
@@ -134,53 +135,91 @@ class MappingPipeline:
             self._bowtie_build_index(verbose)
         self._bowtie_map(verbose)
 
-
-    def _parse_CIGAR(self, CIGAR_string:str) -> dict:
+    def _parse_CIGAR(self, CIGAR_string: str) -> dict:
         n_repeats = regex.findall(r"\d+", CIGAR_string)
         matches = [char for char in CIGAR_string if char.isalpha()]
         CIGAR_list = []
-        CIGAR_dict = {m:[] for m in set(matches)}
-        for n,m in zip(n_repeats, matches):
-            CIGAR_list.extend(int(n)*[m])
-        for i, pos in enumerate(CIGAR_list):
-            CIGAR_dict[pos].append(i)
-        return CIGAR_dict
+        # CIGAR_dict = {m:[] for m in set(matches)}
+        for n, m in zip(n_repeats, matches):
+            CIGAR_list.extend(int(n) * [m])
+        # for i, pos in enumerate(CIGAR_list):
+        #     CIGAR_dict[pos].append(i)
+        return CIGAR_list
 
-
-    def _detect_clip_CIGAR(self, CIGAR_dict:dict) -> bool:
-        if "S" in CIGAR_dict.keys() or "H" in CIGAR_dict.keys():
+    def _detect_clip_CIGAR(self, CIGAR_list: dict) -> bool:
+        if "S" in CIGAR_list or "H" in CIGAR_list:
             return True
         else:
             return False
-            
 
     def _read_sam_to_df(self) -> pd.DataFrame:
-        in_df = pd.read_csv(f"{self.project_dir}/temp/enriched_{self.k}mers.sam", index_col=0, sep="\t", header = None)
-        mappings_df = in_df.loc[:,[3,5,16]]
-        mappings_df = mappings_df.rename(columns={3:"ref_pos", 5:"CIGAR",16:"n_mismatch"})
+        in_df = pd.read_csv(
+            f"{self.project_dir}/temp/enriched_{self.k}mers.sam",
+            index_col=0,
+            sep="\t",
+            header=None,
+        )
+        mappings_df = in_df.loc[:, [3, 5, 16]]
+        mappings_df = mappings_df.rename(
+            columns={3: "ref_pos", 5: "CIGAR", 16: "n_mismatch"}
+        )
         mappings_df["CIGAR"] = mappings_df["CIGAR"].apply(self._parse_CIGAR)
-        mappings_df["n_mismatch"] = mappings_df["n_mismatch"].apply(lambda text: text.split(":")[-1])
-        mappings_df.loc[:,["ref_pos", "n_mismatch"]] = mappings_df.loc[:,["ref_pos", "n_mismatch"]].astype(int)
+        mappings_df["n_mismatch"] = mappings_df["n_mismatch"].apply(
+            lambda text: text.split(":")[-1]
+        )
+        mappings_df.loc[:, ["ref_pos", "n_mismatch"]] = mappings_df.loc[
+            :, ["ref_pos", "n_mismatch"]
+        ].astype(int)
         return mappings_df
 
-    
-    def _find_variants(self, mapping:pd. Series):
-        if mapping["n_mismatch"] != 0:
-            mutations = []
-            if ("I" not in mapping["CIGAR"].keys()) and ("D" not in mapping["CIGAR"].keys()):
-                q_seq = mapping.name
-                t_seq = self.ref_seq[(mapping["ref_pos"]-1):(mapping["ref_pos"]-1+self.k)]
-                print(len(q_seq), len(t_seq))
-                for i, nuc in enumerate(q_seq):
-                    if nuc != t_seq[i]:
-                        mutations.append(f"{t_seq[i]}{mapping['ref_pos']+i}{q_seq[i]}")
-            return " ".join(mutations)
-        else:
-            return "WT" 
-    
+    def _align_seqs(self, ref_seq, kmer, map_pos, cigar):
+        ref_start = map_pos - 1
+        ref_end = ref_start + self.k
+        aln_len = len(cigar)
+        q_seq = [nuc for nuc in kmer]
+        t_seq = [nuc for nuc in ref_seq[ref_start:ref_end]]
+        ref_pos = []
+        curr_pos = map_pos-1
+        for i, change in enumerate(cigar):
+            if change == "D":
+                curr_pos += 1
+                q_seq.insert(i, "-")
+                ref_pos.append(curr_pos)
+            elif change == "I":
+                t_seq.insert(i, "-")
+                ref_pos.append(curr_pos)
+            else:
+                curr_pos += 1
+                ref_pos.append(curr_pos)
+                
+        q_seq = q_seq[:aln_len]
+        t_seq = t_seq[:aln_len]
+
+        return q_seq, t_seq, ref_pos
+
+    def _find_variants(self, ref_seq, kmer, map_pos, cigar, n_mismatch):
+        mutations = []
+        if n_mismatch > 0:
+            q_seq, t_seq, ref_pos = self._align_seqs(ref_seq, kmer, map_pos, cigar)
+            # last_nonzero = ref_pos[0]
+            for i in range(len(q_seq)):
+                if q_seq[i] != t_seq[i]:
+                    if q_seq[i] == "-":
+                        mutations.append(f"{ref_pos[i]}del")
+                        # last_nonzero = ref_pos[i]
+                    elif t_seq[i] == "-":
+                        mutations.append(f"{ref_pos[i]}ins{q_seq[i]}")
+                    else:
+                        mutations.append(f"{ref_pos[i]}{t_seq[i]}>{q_seq[i]}")
+                        # last_nonzero = ref_pos[i]
+                # else:
+                #     # last_nonzero = ref_pos[i]
+        return mutations
 
     def analyze_mapping(self):
         mappings_df = self._read_sam_to_df()
-        mappings_df = mappings_df.loc[~mappings_df["CIGAR"].apply(self._detect_clip_CIGAR)]
-        mappings_df["variants"] = mappings_df.apply(lambda row: self._find_variants(row), axis=1)
+        mappings_df = mappings_df.loc[
+            ~mappings_df["CIGAR"].apply(self._detect_clip_CIGAR)
+        ]
+
         return mappings_df

@@ -68,10 +68,49 @@ def CIGARS_to_parse():
 @pytest.fixture
 def expected_CIGARS():
     cigars = [
-        {"M": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]},
-        {"M": [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14], "I": [8, 9, 10]},
-        {"M": [0, 1, 2, 3, 4, 5, 6, 7, 9, 12, 13, 14, 15], "D": [8], "I": [10, 11]},
-        {"M": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "H": [10, 11, 12, 13, 14]},
-        {"S": [0, 1, 12, 13, 14], "M": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]},
+        ["M", "M", "M", "M", "M", "M", "M", "M", "M", "M", "M", "M", "M", "M", "M"],
+        ["M", "M", "M", "M", "M", "M", "M", "M", "I", "I", "I", "M", "M", "M", "M"],
+        [
+            "M",
+            "M",
+            "M",
+            "M",
+            "M",
+            "M",
+            "M",
+            "M",
+            "D",
+            "M",
+            "I",
+            "I",
+            "M",
+            "M",
+            "M",
+            "M",
+        ],
+        ["M", "M", "M", "M", "M", "M", "M", "M", "M", "M", "H", "H", "H", "H", "H"],
+        ["S", "S", "M", "M", "M", "M", "M", "M", "M", "M", "M", "M", "S", "S", "S"],
     ]
     return cigars
+
+
+@pytest.fixture
+def test_ref_seq():
+    return "GCCCGCTGTCGCA"
+
+
+@pytest.fixture
+def test_mappings():
+    mappings = {
+        "kmer": ["CTGTCGC", "CTCTCGC", "CCCAAGC", "CCCGTCG", "CCCAAGCCCC"],
+        "pos": [6, 6, 2, 2, 2],
+        "CIGAR": [
+            ["M", "M", "M", "M", "M", "M", "M"],
+            ["M", "M", "M", "M", "M", "M", "M"],
+            ["M", "M", "M", "I", "I", "M", "M"],
+            ["M", "M", "M", "D", "D", "D","M", "M", "M", "M"],
+            ["M", "M", "M", "I", "I", "M", "M", "D", "D", "D", "M", "M", "M"],
+        ],
+        "n_mismatch" : [0,1,2,3,6]
+    }
+    return mappings
