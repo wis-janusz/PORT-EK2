@@ -2,6 +2,8 @@ import pytest
 import portek
 from unittest import mock
 
+import pandas as pd
+import numpy as np
 
 def test_check_bowtie2_exists(correct_project_dir, correct_k):
     mapper = portek.MappingPipeline(correct_project_dir, correct_k)
@@ -21,7 +23,7 @@ def test_check_index_exists(correct_project_dir, correct_k):
 
 def test_check_index_notexists(correct_project_dir, correct_k):
     mapper = portek.MappingPipeline(correct_project_dir, correct_k)
-    mapper.ref_seq = "foo"
+    mapper.ref_seq_name = "foo"
     assert mapper._check_index_built() == False
 
 
@@ -49,11 +51,14 @@ def test_bowtie_map_correct(correct_project_dir, correct_k, correct_bowtie_map_c
         assert expected_string == " ".join(*call_args[0])
 
 
-def test_read_sam_correct(correct_project_dir, correct_k):
+def test_read_sam_correct(correct_project_dir, correct_k, test_mapping_groups):
     mapper = portek.MappingPipeline(correct_project_dir, correct_k)
     mapping_df = mapper._read_sam_to_df()
-    assert mapping_df.to_numpy().shape == (64, 3)
-    assert len(mapping_df.dtypes.unique()) == 2
+    assert len(mapping_df) == 65
+    assert mapping_df.columns.equals(
+        pd.Index(["kmer", "flag", "ref_pos", "CIGAR", "n_mismatch", "group"])
+    )
+    assert mapping_df["group"].to_list() == test_mapping_groups
 
 
 def test_parse_CIGAR(correct_project_dir, correct_k, CIGARS_to_parse, expected_CIGARS):
@@ -64,23 +69,37 @@ def test_parse_CIGAR(correct_project_dir, correct_k, CIGARS_to_parse, expected_C
     assert parsed_CIGARS == expected_CIGARS
 
 
-def test_detect_CIGAR_clip(correct_project_dir, correct_k, CIGARS_to_parse):
+def test_detect_CIGAR_unmapped(correct_project_dir, correct_k, expected_CIGARS):
     mapper = portek.MappingPipeline(correct_project_dir, correct_k)
     clippings = []
-    for cigar in CIGARS_to_parse:
-        clippings.append(mapper._detect_clip_CIGAR(cigar))
-    assert clippings == [False, False, False, True, True]
+    for cigar in expected_CIGARS:
+        clippings.append(mapper._detect_unmapped_CIGAR(cigar))
+    assert clippings == [False, False, False, True, True, True]
 
 
 def test_align_seqs(correct_project_dir, correct_k, test_ref_seq, test_mappings):
     mapper = portek.MappingPipeline(correct_project_dir, correct_k)
     expected_aln_lens = [7, 7, 7, 10, 13]
+    expected_aln_q = [
+        ["C", "T", "G", "T", "C", "G", "C"],
+        ["C", "T", "C", "T", "C", "G", "C"],
+        ["C", "C", "C", "A", "A", "G", "C"],
+        ["C", "C", "C", "-", "-", "-", "G", "T", "C", "G"],
+        ["C", "C", "C", "A", "A", "G", "C", "-", "-", "-", "C", "C", "C"],
+    ]
+    expected_aln_t = [
+        ["C", "T", "G", "T", "C", "G", "C"],
+        ["C", "T", "G", "T", "C", "G", "C"],
+        ["C", "C", "C", "-", "-", "G", "C"],
+        ["C", "C", "C", "G", "C", "T", "G", "T", "C", "G"],
+        ["C", "C", "C", "-", "-", "G", "C", "T", "G", "T", "C", "G", "C"],
+    ]
     expected_aln_pos = [
-        [6, 7, 8, 9, 10, 11, 12],
-        [6, 7, 8, 9, 10, 11, 12],
-        [2, 3, 4, 4, 4, 5, 6],
-        [2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-        [2, 3, 4, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        [5, 6, 7, 8, 9, 10, 11],
+        [5, 6, 7, 8, 9, 10, 11],
+        [1, 2, 3, 3, 3, 4, 5],
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        [1, 2, 3, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11],
     ]
 
     for i in range(5):
@@ -96,28 +115,42 @@ def test_align_seqs(correct_project_dir, correct_k, test_ref_seq, test_mappings)
             == len(aligned_mapping[2])
             == expected_aln_lens[i]
         )
-        assert (
-            aligned_mapping[2]
-            == expected_aln_pos[i]
-        )
+        assert aligned_mapping[0] == expected_aln_q[i]
+        assert aligned_mapping[1] == expected_aln_t[i]        
+        assert aligned_mapping[2] == expected_aln_pos[i]
 
 
-
-def test_find_variants(correct_project_dir, correct_k, test_ref_seq, test_mappings):
+def test_join_indels(
+    correct_project_dir, correct_k, expected_mutations, expected_mutations_joined
+):
     mapper = portek.MappingPipeline(correct_project_dir, correct_k)
-    expected_mutations = [
-        [],
-        ["8G>C"],
-        ["4insA", "4insA"],
-        ["5del", "6del", "7del"],
-        ["4insA", "4insA", "7del", "8del", "9del", "11G>C"],
-    ]
+    for i in range(5):
+        mutations = mapper._join_indels(expected_mutations[i])
+        assert mutations == expected_mutations_joined[i]
+
+
+def test_find_variants(
+    correct_project_dir,
+    correct_k,
+    test_ref_seq,
+    test_mappings,
+    expected_mutations_joined,
+):
+    mapper = portek.MappingPipeline(correct_project_dir, correct_k)
     for i in range(5):
         mutations = mapper._find_variants(
             test_ref_seq,
             test_mappings["kmer"][i],
             test_mappings["pos"][i],
             test_mappings["CIGAR"][i],
-            test_mappings["n_mismatch"][i],
         )
-        assert mutations == expected_mutations[i]
+        assert mutations == expected_mutations_joined[i]
+
+
+def test_mutations_tuples_to_text(
+    correct_project_dir, correct_k, expected_mutations_joined, expected_mutations_text
+):
+    mapper = portek.MappingPipeline(correct_project_dir, correct_k)
+    for i in range(5):
+        mutations = mapper._mutation_tuples_to_text(expected_mutations_joined[i])
+        assert mutations == expected_mutations_text[i]

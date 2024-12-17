@@ -126,6 +126,8 @@ def main():
         start_time = datetime.now()
         mapping_pipeline = portek.MappingPipeline(args.project_dir, args.k)
         mapping_pipeline.run_mapping(args.verbose)
+        mapping_pipeline.analyze_mapping(args.verbose)
+        mapping_pipeline.save_mappings_df()
 
     elif args.tool == "classify":
         pass

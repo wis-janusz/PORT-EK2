@@ -4,7 +4,10 @@ import yaml
 import subprocess
 import math
 import regex
+import itertools
+import operator
 import pandas as pd
+import pysam
 from Bio import SeqIO
 
 
@@ -39,7 +42,8 @@ class MappingPipeline:
                     "Unrecognized analysis mode, should by ava or ovr. Check your config file!"
                 )
 
-            self.ref_seq = ".".join(config["ref_seq"].split(".")[:-1])
+            self.ref_seq_name = ".".join(config["ref_seq"].split(".")[:-1])
+            self.ref_seq = str(SeqIO.read(f"{project_dir}/input/{config['ref_seq']}", format="fasta").seq)
             if "ref_genes" in config.keys():
                 self.ref_genes = config["ref_genes"]
             else:
@@ -60,7 +64,8 @@ class MappingPipeline:
             raise FileNotFoundError(
                 f"No enriched {self.k}-mers table found in {project_dir}output/ ! Please run PORT-EK enriched first!"
             )
-
+        
+        self.mutations = None
         # self.kmer_set = None
         # self.sample_list = None
         # self.sample_group_dict = None
@@ -75,7 +80,7 @@ class MappingPipeline:
     def _check_index_built(self):
         index_files = list(
             pathlib.Path(f"{self.project_dir}/temp/ref_index/").glob(
-                f"{self.ref_seq}.*"
+                f"{self.ref_seq_name}.*"
             )
         )
         if len(index_files) == 0:
@@ -89,8 +94,8 @@ class MappingPipeline:
         build_cmd = [
             f"{self.bowtie2_path}/bowtie2-build",
             "-f",
-            f"{self.project_dir}/input/{self.ref_seq}.fasta",
-            f"{self.project_dir}/temp/ref_index/{self.ref_seq}",
+            f"{self.project_dir}/input/{self.ref_seq_name}.fasta",
+            f"{self.project_dir}/temp/ref_index/{self.ref_seq_name}",
         ]
         result = subprocess.run(build_cmd, capture_output=True, text=True)
         if verbose == True:
@@ -107,11 +112,10 @@ class MappingPipeline:
             f"{self.bowtie2_path}/bowtie2",
             "-a",
             "--norc",
-            "--no-hd",
             "-L",
             f"{seed_length}",
             "-x",
-            f"{self.project_dir}/temp/ref_index/{self.ref_seq}",
+            f"{self.project_dir}/temp/ref_index/{self.ref_seq_name}",
             "-f",
             f"{self.project_dir}/temp/enriched_{self.k}mers.fasta",
             "-S",
@@ -139,47 +143,48 @@ class MappingPipeline:
         n_repeats = regex.findall(r"\d+", CIGAR_string)
         matches = [char for char in CIGAR_string if char.isalpha()]
         CIGAR_list = []
-        # CIGAR_dict = {m:[] for m in set(matches)}
         for n, m in zip(n_repeats, matches):
             CIGAR_list.extend(int(n) * [m])
-        # for i, pos in enumerate(CIGAR_list):
-        #     CIGAR_dict[pos].append(i)
         return CIGAR_list
 
-    def _detect_clip_CIGAR(self, CIGAR_list: dict) -> bool:
-        if "S" in CIGAR_list or "H" in CIGAR_list:
+    def _read_sam_to_df(self) -> pd.DataFrame:
+        reads = pysam.AlignmentFile(f"{self.project_dir}/temp/enriched_{self.k}mers.sam", mode="r")
+        read_dict = {"kmer":[], "flag":[],"ref_pos":[],"CIGAR":[],"n_mismatch":[]}
+        for read in reads:
+            read_dict["kmer"].append(read.query_name)
+            read_dict["flag"].append(read.flag)
+            read_dict["ref_pos"].append(read.reference_start)
+            if read.cigarstring == None:
+                read_dict["CIGAR"].append("")
+            else:
+                read_dict["CIGAR"].append(read.cigarstring)
+            if read.has_tag("NM"):
+                read_dict["n_mismatch"].append(read.get_tag("NM", False))
+            else:
+                read_dict["n_mismatch"].append(0)
+
+        mappings_df = pd.DataFrame(read_dict)
+        mappings_df["CIGAR"] = mappings_df["CIGAR"].apply(self._parse_CIGAR)
+        mappings_df.loc[:, ["flag","ref_pos", "n_mismatch"]] = mappings_df.loc[
+            :, ["flag", "ref_pos", "n_mismatch"]
+        ].astype(int)
+        mappings_df["group"] = mappings_df["kmer"].apply(lambda kmer: self.matrices["enriched"].loc[kmer, "group"])
+        return mappings_df
+
+    def _detect_unmapped_CIGAR(self, CIGAR_list: list) -> bool:
+        if "S" in CIGAR_list or "H" in CIGAR_list or len(CIGAR_list) == 0:
             return True
         else:
             return False
 
-    def _read_sam_to_df(self) -> pd.DataFrame:
-        in_df = pd.read_csv(
-            f"{self.project_dir}/temp/enriched_{self.k}mers.sam",
-            index_col=0,
-            sep="\t",
-            header=None,
-        )
-        mappings_df = in_df.loc[:, [3, 5, 16]]
-        mappings_df = mappings_df.rename(
-            columns={3: "ref_pos", 5: "CIGAR", 16: "n_mismatch"}
-        )
-        mappings_df["CIGAR"] = mappings_df["CIGAR"].apply(self._parse_CIGAR)
-        mappings_df["n_mismatch"] = mappings_df["n_mismatch"].apply(
-            lambda text: text.split(":")[-1]
-        )
-        mappings_df.loc[:, ["ref_pos", "n_mismatch"]] = mappings_df.loc[
-            :, ["ref_pos", "n_mismatch"]
-        ].astype(int)
-        return mappings_df
-
     def _align_seqs(self, ref_seq, kmer, map_pos, cigar):
-        ref_start = map_pos - 1
-        ref_end = ref_start + self.k
+        ref_start = map_pos
         aln_len = len(cigar)
+        ref_end = ref_start + aln_len
         q_seq = [nuc for nuc in kmer]
         t_seq = [nuc for nuc in ref_seq[ref_start:ref_end]]
         ref_pos = []
-        curr_pos = map_pos-1
+        curr_pos = ref_start-1
         for i, change in enumerate(cigar):
             if change == "D":
                 curr_pos += 1
@@ -191,35 +196,101 @@ class MappingPipeline:
             else:
                 curr_pos += 1
                 ref_pos.append(curr_pos)
-                
+
         q_seq = q_seq[:aln_len]
         t_seq = t_seq[:aln_len]
-
         return q_seq, t_seq, ref_pos
 
-    def _find_variants(self, ref_seq, kmer, map_pos, cigar, n_mismatch):
+    def _join_indels(self, mutations: list):
+        subs = []
+        ins_pos = []
+        del_pos = []
+
+        for mut in mutations:
+            if mut[1] == "ins":
+                ins_pos.append(mut[0])
+            elif mut[1] == "del":
+                del_pos.append(mut[0])
+            else:
+                subs.append(mut)
+
+        ins_pos = set(ins_pos)
+        inss = []
+        dels = []
+
+        for start_pos in ins_pos:
+            muts = [
+                mut[2] for mut in mutations if mut[0] == start_pos and mut[1] == "ins"
+            ]
+            inss.append((start_pos, "ins", "".join(muts)))
+
+        for k, g in itertools.groupby(
+            enumerate(sorted(del_pos)), lambda x: x[0] - x[1]
+        ):
+            del_group_pos = list(map(operator.itemgetter(1), g))
+            dels.append((del_group_pos[0], "del", del_group_pos[-1]))
+
+        grouped_muts = subs + inss + dels
+        return grouped_muts
+
+    def _find_variants(self, ref_seq, kmer, map_pos, cigar) -> list:
         mutations = []
-        if n_mismatch > 0:
-            q_seq, t_seq, ref_pos = self._align_seqs(ref_seq, kmer, map_pos, cigar)
-            # last_nonzero = ref_pos[0]
-            for i in range(len(q_seq)):
-                if q_seq[i] != t_seq[i]:
-                    if q_seq[i] == "-":
-                        mutations.append(f"{ref_pos[i]}del")
-                        # last_nonzero = ref_pos[i]
-                    elif t_seq[i] == "-":
-                        mutations.append(f"{ref_pos[i]}ins{q_seq[i]}")
-                    else:
-                        mutations.append(f"{ref_pos[i]}{t_seq[i]}>{q_seq[i]}")
-                        # last_nonzero = ref_pos[i]
-                # else:
-                #     # last_nonzero = ref_pos[i]
+        q_seq, t_seq, ref_pos = self._align_seqs(ref_seq, kmer, map_pos, cigar)
+        if len(q_seq) != len(t_seq) != len(ref_pos):
+            raise ValueError(f"Improper alingment of k-mer {q_seq} and reference {t_seq}")
+        for i in range(len(q_seq)):
+            if q_seq[i] != t_seq[i]:
+                if q_seq[i] == "-":
+                    mutations.append((ref_pos[i]+1, "del", ref_pos[i]+1))
+                elif t_seq[i] == "-":
+                    mutations.append((ref_pos[i]+1, "ins", q_seq[i]))
+                else:
+                    mutations.append((ref_pos[i]+1, t_seq[i], q_seq[i]))
+
+        mutations = self._join_indels(mutations)
         return mutations
 
-    def analyze_mapping(self):
-        mappings_df = self._read_sam_to_df()
-        mappings_df = mappings_df.loc[
-            ~mappings_df["CIGAR"].apply(self._detect_clip_CIGAR)
-        ]
+    def _mutation_tuples_to_text(self, mutations_as_tuples: list) -> str:
+        mutations_as_text = []
+        for mut in mutations_as_tuples:
+            if mut[1] == "del":
+                mutations_as_text.append(f"{mut[0]}_{mut[2]}del")
+            elif mut[1] == "ins":
+                mutations_as_text.append(f"{mut[0]}_{mut[0]+1}ins{mut[2]}")
+            else:
+                mutations_as_text.append(f"{mut[0]}{mut[1]}>{mut[2]}")
+        mutations_str = "; ".join(mutations_as_text)
+        return mutations_str
 
-        return mappings_df
+    def analyze_mapping(self, verbose:bool = False):
+        mappings_df = self._read_sam_to_df()
+        mappings_df["mutations"] = "WT"
+        mutation_set = set()
+        for row in mappings_df.itertuples():
+            if self._detect_unmapped_CIGAR(row.CIGAR) == True:
+                mappings_df.loc[row.Index, ["ref_pos", "n_mismatch"]] = 0
+                mappings_df.loc[row.Index, "mutations"] = "NA"
+                mappings_df.loc[row.Index, "flag"] = 4
+            elif row.n_mismatch > 0:
+                mutations_as_tuples = self._find_variants(
+                    self.ref_seq, row.kmer, row.ref_pos, row.CIGAR
+                )
+                mutation_set.update(mutations_as_tuples)
+                mappings_df.loc[row.Index, "mutations"] = self._mutation_tuples_to_text(mutations_as_tuples)
+        num_kmers = len(self.matrices["enriched"])
+        num_primary_mappings = len(mappings_df[mappings_df["flag"] == 0])
+        num_secondary_mappings = len(mappings_df[mappings_df["flag"] == 256])
+        num_unmapped = len(mappings_df[mappings_df["flag"] == 4])
+
+        if verbose == True:
+            print(f"\nMapping of {num_kmers} {self.k}-mers resulted in {num_primary_mappings} primary mappings and {num_secondary_mappings} secondary mappings.")
+            print(f"{num_unmapped} {self.k}-mers couldn't be mapped.")
+        self.matrices["mappings"] = mappings_df
+
+    def save_mappings_df(self):
+        print(f"\nSaving {self.k}-mer mappings.")
+        df_to_save = self.matrices["mappings"][["kmer","ref_pos","group","mutations"]].copy()
+        df_to_save["ref_pos"] = df_to_save["ref_pos"].apply(lambda pos: pos+1 if pos > 0 else pos)
+        df_to_save.index.name = "id"
+        df_to_save.sort_values("ref_pos", inplace = True)
+        df_to_save.to_csv(f"{self.project_dir}/output/enriched_{self.k}mers_mappings.csv")
