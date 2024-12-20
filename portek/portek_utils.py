@@ -7,6 +7,7 @@ from datetime import datetime
 from scipy import stats
 from scipy.spatial import distance
 from scipy.cluster import hierarchy
+from Bio import SeqIO, SeqRecord, Seq
 
 
 def encode_kmer(kmer_seq: str) -> int:
@@ -407,3 +408,21 @@ def make_ordinal(n):
     else:
         suffix = ["th", "st", "nd", "rd", "th"][min(n % 10, 4)]
     return str(n) + suffix
+
+
+def save_kmers_fasta(matrix: pd.DataFrame, name:str, directory:str, k:int) -> None:
+    kmers = matrix.index
+    out_fasta_list = []
+    for kmer in kmers:
+        out_fasta_list.append(
+            SeqRecord.SeqRecord(
+                seq=Seq.Seq(kmer),
+                id=f"{kmer}",
+                description="",
+            )
+        )
+    SeqIO.write(
+        out_fasta_list,
+        f"{directory}/temp/{name}_{k}mers.fasta",
+        format="fasta",
+    )

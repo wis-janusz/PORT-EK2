@@ -117,7 +117,12 @@ def main():
             enriched_kmers_finder.save_counts_for_classifier()
             enriched_kmers_finder.save_matrix("common")
             enriched_kmers_finder.save_matrix("enriched")
-            enriched_kmers_finder.save_kmers_fasta("enriched")
+            portek.save_kmers_fasta(
+                enriched_kmers_finder.matrices["enriched"],
+                "enriched",
+                enriched_kmers_finder.project_dir,
+                enriched_kmers_finder.k,
+            )
             enriched_kmers_finder.plot_PCA()
         end_timeS_ARE_NOT_CANON = datetime.now()
         running_time = end_timeS_ARE_NOT_CANON - start_time

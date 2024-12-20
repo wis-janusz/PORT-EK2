@@ -15,6 +15,7 @@ from .portek_utils import make_ordinal
 from .portek_utils import assemble_kmers_debruijn
 from .portek_utils import assemble_contig
 from .portek_utils import cluster_kmers
+from .portek_utils import save_kmers_fasta
 
 from .portek_findk import KmerFinder
 from .portek_findk import FindOptimalKPipeline

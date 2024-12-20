@@ -843,20 +843,3 @@ class EnrichedKmersPipeline:
             self.matrices[matrix_type].loc[:,export_cols].to_csv(
                 out_filename, index_label="kmer"
             )
-
-    def save_kmers_fasta(self, matrix_type: str):
-        kmers = self.matrices[matrix_type].index
-        out_fasta_list = []
-        for kmer in kmers:
-            out_fasta_list.append(
-                SeqRecord.SeqRecord(
-                    seq=Seq.Seq(kmer),
-                    id=f"{kmer}",
-                    description="",
-                )
-            )
-        SeqIO.write(
-            out_fasta_list,
-            f"{self.project_dir}/temp/{matrix_type}_{self.k}mers.fasta",
-            format="fasta",
-        )
