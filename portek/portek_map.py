@@ -265,7 +265,7 @@ class MappingPipeline:
     def analyze_mapping(self, verbose:bool = False):
         mappings_df = self._read_sam_to_df()
         mappings_df["mutations"] = "WT"
-        mutation_set = set()
+        mutations_dict = {}
         for row in mappings_df.itertuples():
             if self._detect_unmapped_CIGAR(row.CIGAR) == True:
                 mappings_df.loc[row.Index, ["ref_pos", "n_mismatch"]] = 0
@@ -275,8 +275,13 @@ class MappingPipeline:
                 mutations_as_tuples = self._find_variants(
                     self.ref_seq, row.kmer, row.ref_pos, row.CIGAR
                 )
-                mutation_set.update(mutations_as_tuples)
                 mappings_df.loc[row.Index, "mutations"] = self._mutation_tuples_to_text(mutations_as_tuples)
+                for mutation in mutations_as_tuples:
+                    if mutation not in mutations_dict.keys():
+                        mutations_dict[mutation] = [row.kmer]
+                    else:
+                        mutations_dict[mutation].append(row.kmer)
+
         num_kmers = len(self.matrices["enriched"])
         num_primary_mappings = len(mappings_df[mappings_df["flag"] == 0])
         num_secondary_mappings = len(mappings_df[mappings_df["flag"] == 256])
@@ -286,6 +291,8 @@ class MappingPipeline:
             print(f"\nMapping of {num_kmers} {self.k}-mers resulted in {num_primary_mappings} primary mappings and {num_secondary_mappings} secondary mappings.")
             print(f"{num_unmapped} {self.k}-mers couldn't be mapped.")
         self.matrices["mappings"] = mappings_df
+
+        return mutations_dict
 
     def save_mappings_df(self):
         print(f"\nSaving {self.k}-mer mappings.")

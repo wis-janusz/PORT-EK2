@@ -55,12 +55,12 @@ def even_k():
 
 @pytest.fixture
 def correct_bowtie_build_cmd():
-    return "test/mock_bowtie2//bowtie2-build -f test/testproject//input/ref_seq.fasta test/testproject//temp/ref_index/ref_seq"
+    return "/home/labadmin/bowtie//bowtie2-build -f test/testproject//input/ref_seq.fasta test/testproject//temp/ref_index/ref_seq"
 
 
 @pytest.fixture
 def correct_bowtie_map_cmd():
-    return "test/mock_bowtie2//bowtie2 -a --norc -L 8 -x test/testproject//temp/ref_index/ref_seq -f test/testproject//temp/enriched_15mers.fasta -S test/testproject//temp/enriched_15mers.sam"
+    return "/home/labadmin/bowtie//bowtie2 -a --norc -L 8 -x test/testproject//temp/ref_index/ref_seq -f test/testproject//temp/enriched_15mers.fasta -S test/testproject//temp/enriched_15mers.sam"
 
 
 @pytest.fixture
@@ -69,9 +69,7 @@ def test_mapping_groups():
     with open(mapping_path, mode="r") as in_file:
         test_mappings_df = pd.read_csv(in_file, index_col=0)
     test_mapping_group_list = test_mappings_df["group"].to_list()
-    test_mapping_group_list.extend(["conserved"])
     return test_mapping_group_list
-
 
 
 @pytest.fixture
@@ -105,7 +103,7 @@ def expected_CIGARS():
         ],
         ["M", "M", "M", "M", "M", "M", "M", "M", "M", "M", "H", "H", "H", "H", "H"],
         ["S", "S", "M", "M", "M", "M", "M", "M", "M", "M", "M", "M", "S", "S", "S"],
-        []
+        [],
     ]
     return cigars
 
@@ -154,6 +152,7 @@ def expected_mutations():
     ]
     return expected_mutations_list
 
+
 @pytest.fixture
 def expected_mutations_joined():
     expected_mutations_list = [
@@ -171,6 +170,7 @@ def expected_mutations_joined():
     ]
     return expected_mutations_list
 
+
 @pytest.fixture
 def expected_mutations_text():
     expected_mutations_list = [
@@ -178,6 +178,39 @@ def expected_mutations_text():
         "8G>C",
         "4_5insAA",
         "5_7del",
-        "11G>C; 4_5insAA; 7_9del"
+        "11G>C; 4_5insAA; 7_9del",
     ]
     return expected_mutations_list
+
+
+@pytest.fixture
+def test_project_mutation_dict():
+    expected_dict = {
+        (7, "T", "G"): [
+            "GGTCGCACCTAGAGT",
+            "GCCCGCGGTCGCACC",
+            "CGCGGTCGCACCTAG",
+            "GCGGTCGCACCTAGA",
+            "CGGTCGCACCTAGAG",
+            "CCGCGGTCGCACCTA",
+            "CCCGCGGTCGCACCT",
+        ],
+        (45, "T", "A"): [
+            "CTCAGAAATTCTGTT",
+            "TGCTCAGAAATTCTG",
+            "GAAATTCTGTTGGCG",
+            "CATTGCTCAGAAATT",
+            "GCTCAGAAATTCTGT",
+            "GGTCATTGCTCAGAA",
+            "GTCATTGCTCAGAAA",
+            "TCATTGCTCAGAAAT",
+            "AAATTCTGTTGGCGT",
+            "TCAGAAATTCTGTTG",
+            "TTGCTCAGAAATTCT",
+            "CAGAAATTCTGTTGG",
+            "AATTCTGTTGGCGTG",
+            "AGAAATTCTGTTGGC",
+            "ATTGCTCAGAAATTC"
+        ]
+    }
+    return expected_dict

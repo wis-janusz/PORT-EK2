@@ -1,14 +1,16 @@
 
 Here are the results of optimal k selection:
 
-k: 15, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.018673645000000016 s.
-k: 17, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.018308112000000154 s.
-k: 19, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.01902459099999998 s.
-k: 21, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.02041386199999984 s.
-k: 23, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.021672861999999737 s.
-k: 25, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.02212674800000003 s.
-k: 27, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.022971480999999905 s.
-k: 29, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.024183910999999947 s.
-k: 31, Unique kmers: 100.0%, average k-mer entropy: 0.6, CPU time 0.03445074699999995 s.
+k: 11, Unique kmers: 100.0%, average k-mer entropy: 0.5, CPU time 0.02046375899999986 s.
+k: 13, Unique kmers: 100.0%, average k-mer entropy: 0.49, CPU time 0.0264314609999996 s.
+k: 15, Unique kmers: 100.0%, average k-mer entropy: 0.49, CPU time 0.02406845599999974 s.
+k: 17, Unique kmers: 100.0%, average k-mer entropy: 0.48, CPU time 0.026234270000000226 s.
+k: 19, Unique kmers: 100.0%, average k-mer entropy: 0.48, CPU time 0.027703072999999856 s.
+k: 21, Unique kmers: 100.0%, average k-mer entropy: 0.48, CPU time 0.03119339599999993 s.
+k: 23, Unique kmers: 100.0%, average k-mer entropy: 0.48, CPU time 0.03024232800000015 s.
+k: 25, Unique kmers: 100.0%, average k-mer entropy: 0.47, CPU time 0.03468203199999986 s.
+k: 27, Unique kmers: 100.0%, average k-mer entropy: 0.47, CPU time 0.03253296999999988 s.
+k: 29, Unique kmers: 100.0%, average k-mer entropy: 0.47, CPU time 0.0349759919999999 s.
+k: 31, Unique kmers: 100.0%, average k-mer entropy: 0.47, CPU time 0.0368235819999998 s.
 
-PORT-EK thinks k value of 15 is the best for your data!
+PORT-EK thinks k value of 11 is the best for your data!

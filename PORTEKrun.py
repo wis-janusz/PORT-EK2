@@ -115,6 +115,7 @@ def main():
         enriched_kmers_found = enriched_kmers_finder.get_enriched_kmers()
         if enriched_kmers_found == True:
             enriched_kmers_finder.save_counts_for_classifier()
+            enriched_kmers_finder.save_matrix("common")
             enriched_kmers_finder.save_matrix("enriched")
             enriched_kmers_finder.save_kmers_fasta("enriched")
             enriched_kmers_finder.plot_PCA()

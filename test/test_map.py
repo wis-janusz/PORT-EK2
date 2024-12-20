@@ -54,7 +54,7 @@ def test_bowtie_map_correct(correct_project_dir, correct_k, correct_bowtie_map_c
 def test_read_sam_correct(correct_project_dir, correct_k, test_mapping_groups):
     mapper = portek.MappingPipeline(correct_project_dir, correct_k)
     mapping_df = mapper._read_sam_to_df()
-    assert len(mapping_df) == 65
+    assert len(mapping_df) == 75
     assert mapping_df.columns.equals(
         pd.Index(["kmer", "flag", "ref_pos", "CIGAR", "n_mismatch", "group"])
     )
@@ -154,3 +154,10 @@ def test_mutations_tuples_to_text(
     for i in range(5):
         mutations = mapper._mutation_tuples_to_text(expected_mutations_joined[i])
         assert mutations == expected_mutations_text[i]
+
+
+def test_analyse_mapping(correct_project_dir, correct_k, test_project_mutation_dict):
+    mapper = portek.MappingPipeline(correct_project_dir, correct_k)
+    mutation_dict = mapper.analyze_mapping()
+    print(mutation_dict)
+    assert mutation_dict == test_project_mutation_dict
