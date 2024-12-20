@@ -10,6 +10,8 @@ import pandas as pd
 import pysam
 from Bio import SeqIO
 
+import portek
+
 
 class MappingPipeline:
 
@@ -101,7 +103,7 @@ class MappingPipeline:
         if verbose == True:
             print(build_cmd)
         if result.returncode != 0:
-            raise RuntimeError(result.stderr)
+            raise Exception(result.stderr)
         else:
             if verbose == True:
                 print(result.stdout)
@@ -129,20 +131,20 @@ class MappingPipeline:
                 "--norc",
                 "-L",
                 f"{seed_length}",
-                "--score_min",
+                "--score-min",
                 "L,-1,-1",
                 "-x",
                 f"{self.project_dir}/temp/ref_index/{self.ref_seq_name}",
                 "-f",
-                f"{self.project_dir}/temp/enriched_{self.k}mers_rerun.fasta",
+                f"{self.project_dir}/temp/rerun_{self.k}mers.fasta",
                 "-S",
-                f"{self.project_dir}/temp/enriched_{self.k}mers_rerun.sam",
+                f"{self.project_dir}/temp/rerun_{self.k}mers.sam",
             ]
         if verbose == True:
             print(" ".join(map_cmd))
         result = subprocess.run(map_cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            raise RuntimeError(result.stderr)
+            raise Exception(result.stderr)
         else:
             if verbose == True:
                 print(result.stdout)
@@ -153,11 +155,11 @@ class MappingPipeline:
                 f"bowtie2 installation not found in {self.bowtie2_path}! Please install bowtie and input its path in portek_config.yaml."
             )
         if self._check_index_built() == False:
-            self._bowtie_build_index(verbose)
+            self._bowtie_build_index(verbose=verbose)
         if rerun == False: 
-            self._bowtie_map(verbose)
+            self._bowtie_map(verbose=verbose)
         else:
-            self._bowtie_map(rerun, verbose)
+            self._bowtie_map(rerun=rerun, verbose=verbose)
 
     def _parse_CIGAR(self, CIGAR_string: str) -> dict:
         n_repeats = regex.findall(r"\d+", CIGAR_string)
@@ -282,7 +284,7 @@ class MappingPipeline:
         mutations_str = "; ".join(mutations_as_text)
         return mutations_str
 
-    def analyze_mapping(self, verbose:bool = False):
+    def analyze_mapping(self, rerun:bool = False, verbose:bool = False):
         mappings_df = self._read_sam_to_df()
         mappings_df["mutations"] = "WT"
         mutations_dict = {}
@@ -310,8 +312,11 @@ class MappingPipeline:
         if verbose == True:
             print(f"\nMapping of {num_kmers} {self.k}-mers resulted in {num_primary_mappings} primary mappings and {num_secondary_mappings} secondary mappings.")
             print(f"{num_unmapped} {self.k}-mers couldn't be mapped.")
-        
-        self.matrices["mappings"] = mappings_df
+            
+        if rerun == False:
+            unmapped_kmers = mappings_df[mappings_df["flag"] == 4]["kmer"].to_list()
+            portek.save_kmers_fasta(unmapped_kmers, "rerun", self.project_dir, self.k)
+            self.matrices["mappings"] = mappings_df
 
         return mutations_dict
 

@@ -1,0 +1,9 @@
+@HD	VN:1.5	SO:unsorted	GO:query
+@SQ	SN:ref_seq	LN:100
+@PG	ID:bowtie2	PN:bowtie2	VN:2.5.4	CL:"/home/labadmin/bowtie/bowtie2-align-s --wrapper basic-0 -a --norc -L 8 --score-min L,-1,-1 -x test/testproject//temp/ref_index/ref_seq -f test/testproject//temp/rerun_15mers.fasta -S test/testproject//temp/rerun_15mers.sam"
+GCCCGGGGTCGCACC	4	*	0	0	*	*	0	0	GCCCGGGGTCGCACC	IIIIIIIIIIIIIII	YT:Z:UU
+GGGGTCGCACCTAGA	0	ref_seq	5	255	15M	*	0	0	GGGGTCGCACCTAGA	IIIIIIIIIIIIIII	AS:i:-12	XN:i:0	XM:i:2	XO:i:0	XG:i:0	NM:i:2	MD:Z:1C0T12	YT:Z:UU
+GGGTCGCACCTAGAG	0	ref_seq	6	255	15M	*	0	0	GGGTCGCACCTAGAG	IIIIIIIIIIIIIII	AS:i:-12	XN:i:0	XM:i:2	XO:i:0	XG:i:0	NM:i:2	MD:Z:0C0T13	YT:Z:UU
+CCCGGGGTCGCACCT	4	*	0	0	*	*	0	0	CCCGGGGTCGCACCT	IIIIIIIIIIIIIII	YT:Z:UU
+CCGGGGTCGCACCTA	0	ref_seq	3	255	15M	*	0	0	CCGGGGTCGCACCTA	IIIIIIIIIIIIIII	AS:i:-12	XN:i:0	XM:i:2	XO:i:0	XG:i:0	NM:i:2	MD:Z:3C0T10	YT:Z:UU
+CGGGGTCGCACCTAG	0	ref_seq	4	255	15M	*	0	0	CGGGGTCGCACCTAG	IIIIIIIIIIIIIII	AS:i:-12	XN:i:0	XM:i:2	XO:i:0	XG:i:0	NM:i:2	MD:Z:2C0T11	YT:Z:UU

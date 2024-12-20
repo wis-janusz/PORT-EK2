@@ -51,6 +51,17 @@ def test_bowtie_map_correct(correct_project_dir, correct_k, correct_bowtie_map_c
         assert expected_string == " ".join(*call_args[0])
 
 
+def test_bowtie_map_rerun(correct_project_dir, correct_k, correct_bowtie_map_rerun_cmd):
+    mock_result = mock.Mock()
+    mock_result.returncode = 0
+    with mock.patch("subprocess.run", return_value=mock_result) as mock_subprocess:
+        mapper = portek.MappingPipeline(correct_project_dir, correct_k)
+        result = mapper._bowtie_map(rerun=True, verbose=False)
+        expected_string = correct_bowtie_map_rerun_cmd
+        call_args = mock_subprocess.call_args
+        assert expected_string == " ".join(*call_args[0])
+
+
 def test_read_sam_correct(correct_project_dir, correct_k, test_mapping_groups):
     mapper = portek.MappingPipeline(correct_project_dir, correct_k)
     mapping_df = mapper._read_sam_to_df()

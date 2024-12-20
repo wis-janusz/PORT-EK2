@@ -64,6 +64,11 @@ def correct_bowtie_map_cmd():
 
 
 @pytest.fixture
+def correct_bowtie_map_rerun_cmd():
+    return "/home/labadmin/bowtie//bowtie2 -a --norc -L 8 --score-min L,-1,-1 -x test/testproject//temp/ref_index/ref_seq -f test/testproject//temp/rerun_15mers.fasta -S test/testproject//temp/rerun_15mers.sam"
+
+
+@pytest.fixture
 def test_mapping_groups():
     mapping_path = f"test/testproject/output/enriched_15mers_stats.csv"
     with open(mapping_path, mode="r") as in_file:

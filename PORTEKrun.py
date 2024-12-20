@@ -118,7 +118,7 @@ def main():
             enriched_kmers_finder.save_matrix("common")
             enriched_kmers_finder.save_matrix("enriched")
             portek.save_kmers_fasta(
-                enriched_kmers_finder.matrices["enriched"],
+                enriched_kmers_finder.matrices["enriched"].index.to_list(),
                 "enriched",
                 enriched_kmers_finder.project_dir,
                 enriched_kmers_finder.k,
@@ -131,9 +131,13 @@ def main():
     elif args.tool == "map":
         start_time = datetime.now()
         mapping_pipeline = portek.MappingPipeline(args.project_dir, args.k)
-        mapping_pipeline.run_mapping(args.verbose)
-        mapping_pipeline.analyze_mapping(args.verbose)
+        mapping_pipeline.run_mapping(verbose = args.verbose)
+        mapping_pipeline.analyze_mapping(verbose = args.verbose)
         mapping_pipeline.save_mappings_df()
+        if args.rerun_map == True:
+            mapping_pipeline.run_mapping(rerun=args.rerun, verbose = args.verbose)
+            mapping_pipeline.analyze_mapping(rerun=args.rerun, verbose=args.verbose)
+            
 
     elif args.tool == "classify":
         pass
