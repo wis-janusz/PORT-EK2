@@ -410,8 +410,7 @@ def make_ordinal(n):
     return str(n) + suffix
 
 
-def save_kmers_fasta(matrix: pd.DataFrame, name:str, directory:str, k:int) -> None:
-    kmers = matrix.index
+def save_kmers_fasta(kmers:list, name:str, directory:str, k:int) -> None:
     out_fasta_list = []
     for kmer in kmers:
         out_fasta_list.append(
