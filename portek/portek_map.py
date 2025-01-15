@@ -45,11 +45,17 @@ class MappingPipeline:
                 )
 
             self.ref_seq_name = ".".join(config["ref_seq"].split(".")[:-1])
-            self.ref_seq = str(SeqIO.read(f"{project_dir}/input/{config['ref_seq']}", format="fasta").seq)
+            self.ref_seq = str(
+                SeqIO.read(
+                    f"{project_dir}/input/{config['ref_seq']}", format="fasta"
+                ).seq
+            )
             if "ref_genes" in config.keys():
                 self.ref_genes = config["ref_genes"]
             else:
                 self.ref_genes = None
+
+            self.avg_cols = [f"{group}_avg" for group in self.sample_groups]
 
         except:
             raise FileNotFoundError(
@@ -66,9 +72,8 @@ class MappingPipeline:
             raise FileNotFoundError(
                 f"No enriched {self.k}-mers table found in {project_dir}output/ ! Please run PORT-EK enriched first!"
             )
-        
-        self.mutations = None
 
+        self.mutations = None
 
     def _check_bowtie2_path(self):
         return shutil.which("bowtie2")
@@ -144,8 +149,16 @@ class MappingPipeline:
         return CIGAR_list
 
     def _read_sam_to_df(self) -> pd.DataFrame:
-        reads = pysam.AlignmentFile(f"{self.project_dir}/temp/enriched_{self.k}mers.sam", mode="r")
-        read_dict = {"kmer":[], "flag":[],"ref_pos":[],"CIGAR":[],"n_mismatch":[]}
+        reads = pysam.AlignmentFile(
+            f"{self.project_dir}/temp/enriched_{self.k}mers.sam", mode="r"
+        )
+        read_dict = {
+            "kmer": [],
+            "flag": [],
+            "ref_pos": [],
+            "CIGAR": [],
+            "n_mismatch": [],
+        }
         for read in reads:
             read_dict["kmer"].append(read.query_name)
             read_dict["flag"].append(read.flag)
@@ -161,10 +174,12 @@ class MappingPipeline:
 
         mappings_df = pd.DataFrame(read_dict)
         mappings_df["CIGAR"] = mappings_df["CIGAR"].apply(self._parse_CIGAR)
-        mappings_df.loc[:, ["flag","ref_pos", "n_mismatch"]] = mappings_df.loc[
+        mappings_df.loc[:, ["flag", "ref_pos", "n_mismatch"]] = mappings_df.loc[
             :, ["flag", "ref_pos", "n_mismatch"]
         ].astype(int)
-        mappings_df["group"] = mappings_df["kmer"].apply(lambda kmer: self.matrices["enriched"].loc[kmer, "group"])
+        mappings_df["group"] = mappings_df["kmer"].apply(
+            lambda kmer: self.matrices["enriched"].loc[kmer, "group"]
+        )
         return mappings_df
 
     def _detect_unmapped_CIGAR(self, CIGAR_list: list) -> bool:
@@ -180,7 +195,7 @@ class MappingPipeline:
         q_seq = [nuc for nuc in kmer]
         t_seq = [nuc for nuc in ref_seq[ref_start:ref_end]]
         ref_pos = []
-        curr_pos = ref_start-1
+        curr_pos = ref_start - 1
         for i, change in enumerate(cigar):
             if change == "D":
                 curr_pos += 1
@@ -233,32 +248,33 @@ class MappingPipeline:
         mutations = []
         q_seq, t_seq, ref_pos = self._align_seqs(ref_seq, kmer, map_pos, cigar)
         if len(q_seq) != len(t_seq) != len(ref_pos):
-            raise ValueError(f"Improper alingment of k-mer {q_seq} and reference {t_seq}")
+            raise ValueError(
+                f"Improper alingment of k-mer {q_seq} and reference {t_seq}"
+            )
         for i in range(len(q_seq)):
             if q_seq[i] != t_seq[i]:
                 if q_seq[i] == "-":
-                    mutations.append((ref_pos[i]+1, "del", ref_pos[i]+1))
+                    mutations.append((ref_pos[i] + 1, "del", ref_pos[i] + 1))
                 elif t_seq[i] == "-":
-                    mutations.append((ref_pos[i]+1, "ins", q_seq[i]))
+                    mutations.append((ref_pos[i] + 1, "ins", q_seq[i]))
                 else:
-                    mutations.append((ref_pos[i]+1, t_seq[i], q_seq[i]))
+                    mutations.append((ref_pos[i] + 1, t_seq[i], q_seq[i]))
 
         mutations = self._join_indels(mutations)
         return mutations
 
-    def _mutation_tuples_to_text(self, mutations_as_tuples: list) -> str:
-        mutations_as_text = []
-        for mut in mutations_as_tuples:
-            if mut[1] == "del":
-                mutations_as_text.append(f"{mut[0]}_{mut[2]}del")
-            elif mut[1] == "ins":
-                mutations_as_text.append(f"{mut[0]}_{mut[0]+1}ins{mut[2]}")
-            else:
-                mutations_as_text.append(f"{mut[0]}{mut[1]}>{mut[2]}")
-        mutations_str = "; ".join(mutations_as_text)
-        return mutations_str
+    def _mutation_tuple_to_text(self, mutation_as_tuple: tuple) -> str:
+        if mutation_as_tuple[1] == "del":
+            mutation_as_text = f"{mutation_as_tuple[0]}_{mutation_as_tuple[2]}del"
+        elif mutation_as_tuple[1] == "ins":
+            mutation_as_text = f"{mutation_as_tuple[0]}_{mutation_as_tuple[0]+1}ins{mutation_as_tuple[2]}"
+        else:
+            mutation_as_text = (
+                f"{mutation_as_tuple[0]}{mutation_as_tuple[1]}>{mutation_as_tuple[2]}"
+            )
+        return mutation_as_text
 
-    def analyze_mapping(self, rerun:bool = False, verbose:bool = False):
+    def analyze_mapping(self, verbose: bool = False):
         mappings_df = self._read_sam_to_df()
         mappings_df["mutations"] = "WT"
         mutations_dict = {}
@@ -271,12 +287,15 @@ class MappingPipeline:
                 mutations_as_tuples = self._find_variants(
                     self.ref_seq, row.kmer, row.ref_pos, row.CIGAR
                 )
-                mappings_df.loc[row.Index, "mutations"] = self._mutation_tuples_to_text(mutations_as_tuples)
+                mappings_df.loc[row.Index, "mutations"] = "; ".join(
+                    [self._mutation_tuple_to_text(mut) for mut in mutations_as_tuples]
+                )
                 for mutation in mutations_as_tuples:
-                    if mutation not in mutations_dict.keys():
-                        mutations_dict[mutation] = [row.kmer]
+                    mutation_text = self._mutation_tuple_to_text(mutation)
+                    if mutation_text not in mutations_dict.keys():
+                        mutations_dict[mutation_text] = [row.kmer]
                     else:
-                        mutations_dict[mutation].append(row.kmer)
+                        mutations_dict[mutation_text].append(row.kmer)
 
         num_kmers = len(self.matrices["enriched"])
         num_primary_mappings = len(mappings_df[mappings_df["flag"] == 0])
@@ -284,17 +303,33 @@ class MappingPipeline:
         num_unmapped = len(mappings_df[mappings_df["flag"] == 4])
 
         if verbose == True:
-            print(f"\nMapping of {num_kmers} {self.k}-mers resulted in {num_primary_mappings} primary mappings and {num_secondary_mappings} secondary mappings.")
+            print(
+                f"\nMapping of {num_kmers} {self.k}-mers resulted in {num_primary_mappings} primary mappings and {num_secondary_mappings} secondary mappings."
+            )
             print(f"{num_unmapped} {self.k}-mers couldn't be mapped.")
-            
-        self.matrices["mappings"] = mappings_df
 
+        self.matrices["mappings"] = mappings_df
         return mutations_dict
+
+    def aggregate_mutations(self, mutations_dict):
+        aggregate_dict = {}
+        for mutation, kmers in mutations_dict.items():
+            aggregate_dict[mutation] = (
+                self.matrices["enriched"].loc[kmers, self.avg_cols].max()
+            )
+        aggregate_df = pd.DataFrame(aggregate_dict).T.fillna(0).sort_index()
+        aggregate_df.to_csv(f"{self.project_dir}/temp/mutations.csv")
 
     def save_mappings_df(self):
         print(f"\nSaving {self.k}-mer mappings.")
-        df_to_save = self.matrices["mappings"][["kmer","ref_pos","group","mutations"]].copy()
-        df_to_save["ref_pos"] = df_to_save["ref_pos"].apply(lambda pos: pos+1 if pos > 0 else pos)
+        df_to_save = self.matrices["mappings"][
+            ["kmer", "ref_pos", "group", "mutations"]
+        ].copy()
+        df_to_save["ref_pos"] = df_to_save["ref_pos"].apply(
+            lambda pos: pos + 1 if pos > 0 else pos
+        )
         df_to_save.index.name = "id"
-        df_to_save.sort_values("ref_pos", inplace = True)
-        df_to_save.to_csv(f"{self.project_dir}/output/enriched_{self.k}mers_mappings.csv")
+        df_to_save.sort_values("ref_pos", inplace=True)
+        df_to_save.to_csv(
+            f"{self.project_dir}/output/enriched_{self.k}mers_mappings.csv"
+        )

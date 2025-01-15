@@ -10,10 +10,12 @@ def test_check_index_exists(correct_project_dir, correct_k):
     mapper = portek.MappingPipeline(correct_project_dir, correct_k)
     assert mapper._check_index_built() == True
 
+
 def test_check_index_notexists(correct_project_dir, correct_k):
     mapper = portek.MappingPipeline(correct_project_dir, correct_k)
     mapper.ref_seq_name = "foo"
     assert mapper._check_index_built() == False
+
 
 def test_bowtie_build_index_correct(
     correct_project_dir, correct_k, correct_bowtie_build_cmd
@@ -104,7 +106,7 @@ def test_align_seqs(correct_project_dir, correct_k, test_ref_seq, test_mappings)
             == expected_aln_lens[i]
         )
         assert aligned_mapping[0] == expected_aln_q[i]
-        assert aligned_mapping[1] == expected_aln_t[i]        
+        assert aligned_mapping[1] == expected_aln_t[i]
         assert aligned_mapping[2] == expected_aln_pos[i]
 
 
@@ -140,7 +142,12 @@ def test_mutations_tuples_to_text(
 ):
     mapper = portek.MappingPipeline(correct_project_dir, correct_k)
     for i in range(5):
-        mutations = mapper._mutation_tuples_to_text(expected_mutations_joined[i])
+        mutations = "; ".join(
+            [
+                mapper._mutation_tuple_to_text(mut)
+                for mut in expected_mutations_joined[i]
+            ]
+        )
         assert mutations == expected_mutations_text[i]
 
 
