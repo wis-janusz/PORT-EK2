@@ -3,7 +3,6 @@ input_files: [] #Fill with comma separated list of fasta files with input sequen
 header_format: [] #Optionally, fill with comma separated list of header formats of fasta files above. Accepts values of "gisaid", "ncbi" or "plain". If left empty assumes "plain" for all groups.
 mode: #"ava" or "ovr" for all vs all or one vs rest comparison. If ovr, input the group of interest in the next line
 goi: #Define group of interest for ovr mode.
-bowtie2_path: bowtie/
 ref_seq: #Name of fasta file containing reference genomic sequence, if used. The file should be placed in $project_dir/input.
 ref_genes: #List of genes/genomic regions and their start and end positions in the reference genomic sequence, if used. Can have multiple regions per gene.
     GENE_A:

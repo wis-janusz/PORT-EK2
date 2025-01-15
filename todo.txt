@@ -1,7 +1,6 @@
-mapping in one module - portek_map
-classification in one modeule - portek_classify
+classification in one module - portek_classify
+add reference-free mapping
 add enriched/conserved/variable genome regions plots
 clean up prints
 documentation
 tests
-clustering on unmapped k-mers, remapping?

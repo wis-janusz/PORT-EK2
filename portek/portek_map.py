@@ -1,5 +1,6 @@
 import pathlib
 import os
+import shutil
 import yaml
 import subprocess
 import math
@@ -77,7 +78,7 @@ class MappingPipeline:
         # self.p_cols = None
 
     def _check_bowtie2_path(self):
-        return os.path.exists(f"{self.bowtie2_path}/bowtie2")
+        return shutil.which("bowtie2")
 
     def _check_index_built(self):
         index_files = list(
@@ -94,7 +95,7 @@ class MappingPipeline:
         if os.path.exists(f"{self.project_dir}/temp/ref_index/") == False:
             os.makedirs(f"{self.project_dir}/temp/ref_index")
         build_cmd = [
-            f"{self.bowtie2_path}/bowtie2-build",
+            f"bowtie2-build",
             "-f",
             f"{self.project_dir}/input/{self.ref_seq_name}.fasta",
             f"{self.project_dir}/temp/ref_index/{self.ref_seq_name}",
@@ -108,38 +109,21 @@ class MappingPipeline:
             if verbose == True:
                 print(result.stdout)
 
-    def _bowtie_map(self, rerun:bool = False, verbose: bool = False):
+    def _bowtie_map(self, verbose: bool = False):
         seed_length = int(math.ceil(self.k / 2))
-        if rerun == False:
-            map_cmd = [
-                f"{self.bowtie2_path}/bowtie2",
-                "-a",
-                "--norc",
-                "-L",
-                f"{seed_length}",
-                "-x",
-                f"{self.project_dir}/temp/ref_index/{self.ref_seq_name}",
-                "-f",
-                f"{self.project_dir}/temp/enriched_{self.k}mers.fasta",
-                "-S",
-                f"{self.project_dir}/temp/enriched_{self.k}mers.sam",
-            ]
-        else:
-            map_cmd = [
-                f"{self.bowtie2_path}/bowtie2",
-                "-a",
-                "--norc",
-                "-L",
-                f"{seed_length}",
-                "--score-min",
-                "L,-1,-1",
-                "-x",
-                f"{self.project_dir}/temp/ref_index/{self.ref_seq_name}",
-                "-f",
-                f"{self.project_dir}/temp/rerun_{self.k}mers.fasta",
-                "-S",
-                f"{self.project_dir}/temp/rerun_{self.k}mers.sam",
-            ]
+        map_cmd = [
+            f"bowtie2",
+            "-a",
+            "--norc",
+            "-L",
+            f"{seed_length}",
+            "-x",
+            f"{self.project_dir}/temp/ref_index/{self.ref_seq_name}",
+            "-f",
+            f"{self.project_dir}/temp/enriched_{self.k}mers.fasta",
+            "-S",
+            f"{self.project_dir}/temp/enriched_{self.k}mers.sam",
+        ]
         if verbose == True:
             print(" ".join(map_cmd))
         result = subprocess.run(map_cmd, capture_output=True, text=True)
@@ -149,17 +133,14 @@ class MappingPipeline:
             if verbose == True:
                 print(result.stdout)
 
-    def run_mapping(self, rerun: bool = False, verbose: bool = False):
-        if self._check_bowtie2_path() == False:
+    def run_mapping(self, verbose: bool = False):
+        if self._check_bowtie2_path() == None:
             raise FileNotFoundError(
-                f"bowtie2 installation not found in {self.bowtie2_path}! Please install bowtie and input its path in portek_config.yaml."
+                f"bowtie2 not found! Please install bowtie and add it to your PATH!"
             )
         if self._check_index_built() == False:
             self._bowtie_build_index(verbose=verbose)
-        if rerun == False: 
-            self._bowtie_map(verbose=verbose)
-        else:
-            self._bowtie_map(rerun=rerun, verbose=verbose)
+        self._bowtie_map(verbose=verbose)
 
     def _parse_CIGAR(self, CIGAR_string: str) -> dict:
         n_repeats = regex.findall(r"\d+", CIGAR_string)
@@ -313,10 +294,7 @@ class MappingPipeline:
             print(f"\nMapping of {num_kmers} {self.k}-mers resulted in {num_primary_mappings} primary mappings and {num_secondary_mappings} secondary mappings.")
             print(f"{num_unmapped} {self.k}-mers couldn't be mapped.")
             
-        if rerun == False:
-            unmapped_kmers = mappings_df[mappings_df["flag"] == 4]["kmer"].to_list()
-            portek.save_kmers_fasta(unmapped_kmers, "rerun", self.project_dir, self.k)
-            self.matrices["mappings"] = mappings_df
+        self.matrices["mappings"] = mappings_df
 
         return mutations_dict
 

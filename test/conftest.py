@@ -55,17 +55,12 @@ def even_k():
 
 @pytest.fixture
 def correct_bowtie_build_cmd():
-    return "/home/labadmin/bowtie//bowtie2-build -f test/testproject//input/ref_seq.fasta test/testproject//temp/ref_index/ref_seq"
+    return "bowtie2-build -f test/testproject//input/ref_seq.fasta test/testproject//temp/ref_index/ref_seq"
 
 
 @pytest.fixture
 def correct_bowtie_map_cmd():
-    return "/home/labadmin/bowtie//bowtie2 -a --norc -L 8 -x test/testproject//temp/ref_index/ref_seq -f test/testproject//temp/enriched_15mers.fasta -S test/testproject//temp/enriched_15mers.sam"
-
-
-@pytest.fixture
-def correct_bowtie_map_rerun_cmd():
-    return "/home/labadmin/bowtie//bowtie2 -a --norc -L 8 --score-min L,-1,-1 -x test/testproject//temp/ref_index/ref_seq -f test/testproject//temp/rerun_15mers.fasta -S test/testproject//temp/rerun_15mers.sam"
+    return "bowtie2 -a --norc -L 8 -x test/testproject//temp/ref_index/ref_seq -f test/testproject//temp/enriched_15mers.fasta -S test/testproject//temp/enriched_15mers.sam"
 
 
 @pytest.fixture
