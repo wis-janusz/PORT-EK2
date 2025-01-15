@@ -133,11 +133,7 @@ def main():
         mapping_pipeline = portek.MappingPipeline(args.project_dir, args.k)
         mapping_pipeline.run_mapping(verbose = args.verbose)
         mapping_pipeline.analyze_mapping(verbose = args.verbose)
-        mapping_pipeline.save_mappings_df()
-        if args.rerun_map == True:
-            mapping_pipeline.run_mapping(rerun=args.rerun, verbose = args.verbose)
-            mapping_pipeline.analyze_mapping(rerun=args.rerun, verbose=args.verbose)
-            
+        mapping_pipeline.save_mappings_df()          
 
     elif args.tool == "classify":
         pass

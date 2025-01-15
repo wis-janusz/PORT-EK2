@@ -31,7 +31,6 @@ class MappingPipeline:
             with open(f"{project_dir}/config.yaml", "r") as config_file:
                 config = yaml.safe_load(config_file)
             self.sample_groups = config["sample_groups"]
-            self.bowtie2_path = config["bowtie2_path"]
             self.mode = config["mode"]
             if self.mode == "ovr":
                 self.goi = config["goi"]
@@ -69,13 +68,7 @@ class MappingPipeline:
             )
         
         self.mutations = None
-        # self.kmer_set = None
-        # self.sample_list = None
-        # self.sample_group_dict = None
-        # self.enriched_groups = None
-        # self.avg_cols = [f"{group}_avg" for group in self.sample_groups]
-        # self.err_cols = None
-        # self.p_cols = None
+
 
     def _check_bowtie2_path(self):
         return shutil.which("bowtie2")
