@@ -410,16 +410,25 @@ def make_ordinal(n):
     return str(n) + suffix
 
 
-def save_kmers_fasta(kmers:list, name:str, directory:str, k:int) -> None:
+def save_kmers_fasta(kmers:list, ids:list | None, name:str, directory:str, k:int) -> None:
     out_fasta_list = []
-    for kmer in kmers:
-        out_fasta_list.append(
-            SeqRecord.SeqRecord(
-                seq=Seq.Seq(kmer),
-                id=f"{kmer}",
-                description="",
+    for i,kmer in enumerate(kmers):
+        if ids == None:
+            out_fasta_list.append(
+                SeqRecord.SeqRecord(
+                    seq=Seq.Seq(kmer),
+                    id=f"{kmer}",
+                    description="",
+                )
             )
-        )
+        else:
+            out_fasta_list.append(
+                SeqRecord.SeqRecord(
+                    seq=Seq.Seq(kmer),
+                    id=ids[i],
+                    description="",
+                )
+            )           
     SeqIO.write(
         out_fasta_list,
         f"{directory}/temp/{name}_{k}mers.fasta",

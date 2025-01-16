@@ -15,21 +15,27 @@ from time import process_time
 from Bio import SeqIO
 
 
-
 class KmerFinder:
     """
     KmerFinder:
     """
 
-    def __init__(self, project_dir: str, maxk: int) -> None:
+    def __init__(self, project_dir: str, mink: int, maxk: int) -> None:
         if os.path.isdir(project_dir) == True:
             self.project_dir = project_dir
         else:
             raise NotADirectoryError("Project directory does not exist!")
 
+        if type(mink) != int or mink < 5 or mink % 2 == 0:
+            raise TypeError(
+                "Minimum k must by an odd integer not smaller than 5!"
+            )
+        else:
+            self.mink = mink
+
         if type(maxk) != int or maxk < 5 or maxk % 2 == 0:
             raise TypeError(
-                "Maximum k must by an odd integer not smaller than 5 and not smaller than minimum k!"
+                "Maximum k must by an odd integer not smaller than 5!"
             )
         else:
             self.maxk = maxk
@@ -102,42 +108,38 @@ class KmerFinder:
         group_size = len(seq_list)
         avg_dict = {}
         freq_dict = {}
-
+        kmers_pos_dict = {}
         for seq in seq_list:
             seqid = seq.id
             seq = [encoding[nuc] for nuc in seq.seq]
             kmers_dict = {}
-            kmers_pos_dict = {}
+
             for i in range(0, len(seq) - k + 1):
                 kmer = seq[i : i + k]
                 if "X" not in kmer:
                     kmer = int("".join(kmer), base=2)
                     kmer_set.add(kmer)
+
                     if kmer in kmers_dict.keys():
                         kmers_dict[kmer] += 1
                         kmers_pos_dict[kmer].append(i + 1)
                         avg_dict[kmer] += 1 / group_size
-
                     else:
-                        kmers_dict[kmer] = 1
-                        kmers_pos_dict[kmer] = [i + 1]
+                        kmers_dict[kmer] = 1  
                         if kmer in freq_dict.keys():
                             freq_dict[kmer] += 1 / group_size
                             avg_dict[kmer] += 1 / group_size
+                            kmers_pos_dict[kmer].append(i + 1)
                         else:
                             freq_dict[kmer] = 1 / group_size
                             avg_dict[kmer] = 1 / group_size
+                            kmers_pos_dict[kmer] = [i + 1]
 
             with open(
                 f"{self.project_dir}/input/indices/{k}mers/{group}_{seqid}_count.pkl",
                 mode="wb",
             ) as out_file:
                 pickle.dump(kmers_dict, out_file, protocol=pickle.HIGHEST_PROTOCOL)
-            with open(
-                f"{self.project_dir}/input/indices/{k}mers/{group}_{seqid}_pos.pkl",
-                mode="wb",
-            ) as out_file:
-                pickle.dump(kmers_pos_dict, out_file, protocol=pickle.HIGHEST_PROTOCOL)
 
         with open(
             f"{self.project_dir}/input/indices/{k}mer_{group}_set.pkl", mode="wb"
@@ -154,6 +156,12 @@ class KmerFinder:
         ) as out_file:
             pickle.dump(avg_dict, out_file, protocol=pickle.HIGHEST_PROTOCOL)
 
+        with open(
+            f"{self.project_dir}/input/indices/{k}mer_{group}_pos_dict.pkl",
+            mode="wb",
+        ) as out_file:
+            pickle.dump(kmers_pos_dict, out_file, protocol=pickle.HIGHEST_PROTOCOL)
+
         if verbose == True:
             print(
                 f"Done finding all {k}-mers in {group} sequences.",
@@ -164,10 +172,10 @@ class KmerFinder:
 
     def find_all_kmers(self, n_jobs: int = 4, verbose: bool = False):
         print(
-            f"Finding all k-mers of lengths {5} to {self.maxk} in {len(self.sample_groups)} files.",
+            f"Finding all k-mers of lengths {self.mink} to {self.maxk} in {len(self.sample_groups)} files.",
             flush=True,
         )
-        k_to_test = [k for k in range(5, self.maxk + 1, 2)]
+        k_to_test = [k for k in range(self.mink, self.maxk + 1, 2)]
         k_to_test.reverse()
 
         find_kmers_pool_input = []
@@ -195,19 +203,25 @@ class FindOptimalKPipeline:
     FindOptimalKPipeline:
     """
 
-    def __init__(self, project_dir: str, maxk: int, times) -> None:
+    def __init__(self, project_dir: str, mink: int, maxk: int, times) -> None:
         if os.path.isdir(project_dir) == True:
             self.project_dir = project_dir
         else:
             raise NotADirectoryError("Project directory does not exist!")
 
+        if type(mink) != int or mink < 5 or mink % 2 == 0:
+            raise TypeError(
+                "Minimum k must by an odd integer not smaller than 5!"
+            )
+        else:
+            self.mink = mink
+
         if type(maxk) != int or maxk < 5 or maxk % 2 == 0:
             raise TypeError(
-                "Maximum k must by an odd integer not smaller than 5 and not smaller than minimum k!"
+                "Maximum k must by an odd integer not smaller than 5!"
             )
         else:
             self.maxk = maxk
-
         try:
             with open(f"{project_dir}/config.yaml", "r") as config_file:
                 config = yaml.safe_load(config_file)
@@ -349,7 +363,7 @@ class FindOptimalKPipeline:
 
         try:
             spec = unique_kmer / sig_kmer
-        except(ZeroDivisionError):
+        except ZeroDivisionError:
             spec = 0
         dt = process_time() - start_time
         mem = float(f"{np.mean(all_kmer_stat_matrix['H']):.2g}")
@@ -361,14 +375,14 @@ class FindOptimalKPipeline:
 
     def find_optimal_k(self, n_jobs: int = 4, verbose: bool = False):
         print("Finding optimal k.")
-        k_to_test = [(k, verbose) for k in range(5, self.maxk + 1, 2)]
+        k_to_test = [(k, verbose) for k in range(self.mink, self.maxk + 1, 2)]
 
         with multiprocessing.get_context("forkserver").Pool(n_jobs) as pool:
             results = pool.starmap(self._calc_metrics, k_to_test, chunksize=1)
 
         result_df = pd.DataFrame(
             0,
-            index=range(5, self.maxk + 1, 2),
+            index=range(self.mink, self.maxk + 1, 2),
             columns=["spec", "mem", "dt", "spec_rank", "mem_rank", "dt_rank", "score"],
             dtype=float,
         )
@@ -393,7 +407,9 @@ class FindOptimalKPipeline:
         result_df.sort_index(inplace=True)
         result_df["diff"] = result_df["spec"].diff(periods=-1)
         if len(result_df) == 0:
-            print("\nNo value of k resulted in more than 100 k-mers passing the entropy filter!")
+            print(
+                "\nNo value of k resulted in more than 100 k-mers passing the entropy filter!"
+            )
             print("The data set is likely too small, too diverse, or too conserved.")
             return None
         with open(

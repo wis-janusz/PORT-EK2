@@ -843,3 +843,14 @@ class EnrichedKmersPipeline:
             self.matrices[matrix_type].loc[:,export_cols].to_csv(
                 out_filename, index_label="kmer"
             )
+
+    def save_kmers_as_reads(self):
+        for group in self.sample_groups:
+            ids = []
+            kmers = []
+            for kmer in self.matrices["enriched"].index:
+                count = int(round(self.matrices["enriched"].loc[kmer, f"{group}_avg"]*len(self.sample_group_dict[group])))
+                kmers.extend([kmer]*count)
+                for i in range(count):
+                    ids.append(f"{kmer}{i}")
+            portek.save_kmers_fasta(kmers=kmers, ids=ids, name=group, directory=self.project_dir, k=self.k)

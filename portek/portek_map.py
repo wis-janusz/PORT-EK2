@@ -2,12 +2,17 @@ import pathlib
 import os
 import shutil
 import yaml
+import pickle
 import subprocess
 import math
 import regex
 import itertools
 import operator
+from collections import Counter
+import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 import pysam
 from Bio import SeqIO
 
@@ -333,3 +338,123 @@ class MappingPipeline:
         df_to_save.to_csv(
             f"{self.project_dir}/output/enriched_{self.k}mers_mappings.csv"
         )
+
+
+class RefFreePipeline:
+
+    def __init__(self, project_dir: str, k):
+        if os.path.isdir(project_dir) == True:
+            self.project_dir = project_dir
+        else:
+            raise NotADirectoryError("Project directory does not exist!")
+
+        if type(k) != int:
+            raise TypeError("k must by an integer!")
+        else:
+            self.k = k
+
+        try:
+            with open(f"{project_dir}/config.yaml", "r") as config_file:
+                config = yaml.safe_load(config_file)
+            self.sample_groups = config["sample_groups"]
+            self.mode = config["mode"]
+            if self.mode == "ovr":
+                self.goi = config["goi"]
+                self.control_groups = self.sample_groups.copy()
+                self.control_groups.remove(self.goi)
+            elif self.mode == "ava":
+                self.goi = None
+                self.control_groups = None
+            else:
+                raise ValueError(
+                    "Unrecognized analysis mode, should by ava or ovr. Check your config file!"
+                )
+
+        except:
+            raise FileNotFoundError(
+                f"No config.yaml file found in directory {project_dir} or the file has missing/wrong configuration!"
+            )
+
+        self.matrices = {}
+        try:
+            self.matrices["enriched"] = pd.read_csv(
+                f"{project_dir}/output/enriched_{self.k}mers_stats.csv", index_col=0
+            )
+
+        except:
+            raise FileNotFoundError(
+                f"No enriched {self.k}-mers table found in {project_dir}output/ ! Please run PORT-EK enriched first!"
+            )
+        self.group_distros = None
+        self.sample_list = None
+        self.sample_group_dict = None
+
+    def _get_samples(self, verbose:bool = False):
+        sample_list_in_path = pathlib.Path(f"{self.project_dir}/input/indices").glob(
+            "*sample_list.pkl"
+        )
+        sample_list = []
+        for filename in sample_list_in_path:
+            with open(filename, mode="rb") as in_file:
+                partial_list = pickle.load(in_file)
+            group = filename.stem.split("_")[0]
+            partial_list = [f"{group}_{sample_name}" for sample_name in partial_list]
+            sample_list.extend(partial_list)
+        sample_group_dict = {
+            f"{group}": [
+                sample for sample in sample_list if sample.split("_")[0] == f"{group}"
+            ]
+            for group in self.sample_groups
+        }
+        self.sample_list = sample_list
+        self.sample_group_dict = sample_group_dict
+    
+    def get_kmer_pos(self, matrix_type: str, verbose: bool = False):
+        self._get_samples(verbose)
+        print(f"\nGetting {matrix_type} {self.k}-mer position distributions.")
+        in_path = pathlib.Path(f"{self.project_dir}/input/indices/").glob(
+            f"{self.k}mer_*_pos_dict.pkl"
+        )
+        if verbose == True:
+            files_counter = 1
+            tot_files = len(self.sample_groups)
+        group_distros = {}
+        for filename in in_path:
+            with open(filename, mode="rb") as in_file:
+                group = filename.stem.split("_")[1]
+                temp_dict = pickle.load(in_file)
+                temp_dict = {portek.decode_kmer(id, self.k):positions for id, positions in temp_dict.items()}
+                group_distros[group] = {}
+                for kmer_group in self.matrices["enriched"]["group"].unique():
+                    kmers = self.matrices["enriched"][self.matrices["enriched"]["group"] == kmer_group].index
+                    filtered_dict = {kmer:Counter(positions) for kmer, positions in temp_dict.items() if kmer in kmers}
+                    ratio_dict = {}
+                    for kmer, counter in filtered_dict.items():
+                        ratio_dict[kmer] = {position:count/len(self.sample_group_dict[group]) for position,count in counter.items()}
+                    group_distros[group][kmer_group] = ratio_dict
+            if verbose == True:
+                print(
+                    f"Loaded {self.k}-mer distributions from {files_counter} of {tot_files} groups.",
+                    end="\r",
+                    flush=True,
+                )
+                files_counter += 1
+        self.group_distros = group_distros
+
+    def calc_distribution_stats(self, verbose:bool=False):
+        bout_bout = Counter()
+        for fractional_counts in self.group_distros["Bout"]["Bout_enriched"].values():
+            bout_bout |= fractional_counts
+        bout_bmain = Counter()
+        for fractional_counts in self.group_distros["Bout"]["Bmain_enriched"].values():
+            bout_bmain |= fractional_counts
+        bout_cons = Counter()
+        for fractional_counts in self.group_distros["Bout"]["conserved"].values():
+            bout_cons |= fractional_counts
+
+        max_x = max([max(bout_bout.keys()),max(bout_bmain.keys()),max(bout_cons.keys())])
+
+        bout_coverage = pd.DataFrame(0,index=range(0,max_x+1), columns=["bout","bmain","conserved"])
+        bout_df = pd.DataFrame(bout_bout)
+        bout_coverage.update(bout_df)
+        print(bout_coverage)
